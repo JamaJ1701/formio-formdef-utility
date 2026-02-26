@@ -140,9 +140,16 @@ const buildTreeAnalysisMaps = (errors, connections, unresolvedConnections) => {
     };
 };
 
-const enrichTreeWithAnalysis = (nodes, maps) => {
+const enrichTreeWithAnalysis = (nodes, maps, metadataByPath) => {
     return nodes.map((node) => {
-        const children = enrichTreeWithAnalysis(node.children ?? [], maps);
+        const children = enrichTreeWithAnalysis(
+            node.children ?? [],
+            maps,
+            metadataByPath,
+        );
+        const metadata = metadataByPath[node.id];
+        const dataPath = metadata?.dataPath || "";
+        const affectsDataPath = Boolean(dataPath);
 
         const directErrors = maps.errorCounts.get(node.id) ?? 0;
         const directIncoming = maps.incomingCounts.get(node.id) ?? 0;
@@ -218,6 +225,8 @@ const enrichTreeWithAnalysis = (nodes, maps) => {
         return {
             ...node,
             children,
+            dataPath,
+            affectsDataPath,
             analysis: {
                 directErrors,
                 directIncoming,
@@ -309,6 +318,13 @@ export const analyzeDefinition = (raw) => {
         const indexed = indexComponentsByPath(components);
         const metadataByPath = indexComponentMetadataByPath(components);
         componentCount = Object.keys(metadataByPath).length;
+        const detectedComponentTypes = Array.from(
+            new Set(
+                Object.values(metadataByPath)
+                    .map((metadata) => metadata?.component?.type)
+                    .filter(Boolean),
+            ),
+        ).sort((left, right) => left.localeCompare(right));
 
         Object.entries(metadataByPath).forEach(([path, metadata]) => {
             const { component, dataPath } = metadata;
@@ -345,6 +361,7 @@ export const analyzeDefinition = (raw) => {
                 connectionsAnalysis.connections,
                 connectionsAnalysis.unresolved,
             ),
+            metadataByPath,
         );
 
         return {
@@ -358,6 +375,7 @@ export const analyzeDefinition = (raw) => {
                 totalConnections: connectionsAnalysis.stats.totalConnections,
                 connectionTypes: connectionsAnalysis.stats.uniqueTypes,
                 connectionTypeCounts: connectionsAnalysis.stats.typeCounts,
+                componentTypes: detectedComponentTypes,
             },
         };
     } catch (error) {
@@ -377,6 +395,7 @@ export const analyzeDefinition = (raw) => {
                 totalConnections: 0,
                 connectionTypes: 0,
                 connectionTypeCounts: {},
+                componentTypes: [],
             },
         };
     }

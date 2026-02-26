@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./App.css";
-import TreeDiagram from "./components/TreeDiagram";
+import ComponentTree from "./components/ComponentTree";
 import Connections from "./components/Connections";
 import sampleJson from "./data/sampleJson";
 import { analyzeDefinition } from "./utils/analyzeDefinition";
@@ -172,7 +172,7 @@ export default function App() {
                                 onClick={() => setIsDiagramFullscreen(true)}
                                 disabled={!analysis?.tree?.length}
                             >
-                                View component diagram
+                                View component tree
                             </button>
                         </div>
 
@@ -336,10 +336,10 @@ export default function App() {
                           className="diagram-fullscreen"
                           role="dialog"
                           aria-modal="true"
-                          aria-label="Component diagram"
+                          aria-label="Component tree"
                       >
                           <div className="diagram-fullscreen-header">
-                              <h3>Component diagram</h3>
+                              <h3>Component tree</h3>
                               <button
                                   className="btn"
                                   type="button"
@@ -349,9 +349,12 @@ export default function App() {
                               </button>
                           </div>
 
-                          <TreeDiagram
+                          <ComponentTree
                               nodes={analysis?.tree ?? []}
-                              connections={analysis?.connections ?? []}
+                              errors={analysis?.errors ?? []}
+                              componentTypes={
+                                  analysis?.stats?.componentTypes ?? []
+                              }
                           />
                       </div>,
                       document.body,

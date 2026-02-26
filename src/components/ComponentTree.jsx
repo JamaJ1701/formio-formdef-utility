@@ -1,0 +1,333 @@
+import { useEffect, useMemo, useState } from "react";
+
+const buildInitialCollapsedSet = (nodes, depth = 0, collapsed = new Set()) => {
+    nodes.forEach((node) => {
+        const children = node.children ?? [];
+        if (children.length && depth > 0) {
+            collapsed.add(node.id);
+        }
+        buildInitialCollapsedSet(children, depth + 1, collapsed);
+    });
+
+    return collapsed;
+};
+
+const filterTreeNodes = (nodes, selectedType, hideLayoutOnly) => {
+    return nodes.reduce((accumulator, node) => {
+        const children = filterTreeNodes(
+            node.children ?? [],
+            selectedType,
+            hideLayoutOnly,
+        );
+
+        const matchesType =
+            selectedType === "all" || node.type === selectedType;
+        const matchesLayout = !hideLayoutOnly || node.affectsDataPath;
+        const matchesSelf = matchesType && matchesLayout;
+
+        if (!matchesSelf && !children.length) {
+            return accumulator;
+        }
+
+        accumulator.push({
+            ...node,
+            children,
+        });
+
+        return accumulator;
+    }, []);
+};
+
+const findNodeById = (nodes, id) => {
+    for (const node of nodes) {
+        if (node.id === id) {
+            return node;
+        }
+
+        const childMatch = findNodeById(node.children ?? [], id);
+        if (childMatch) {
+            return childMatch;
+        }
+    }
+
+    return null;
+};
+
+const collectVisibleIds = (nodes, ids = []) => {
+    nodes.forEach((node) => {
+        ids.push(node.id);
+        collectVisibleIds(node.children ?? [], ids);
+    });
+
+    return ids;
+};
+
+const TreeNode = ({
+    node,
+    depth,
+    collapsedIds,
+    onToggle,
+    selectedNodeId,
+    onSelect,
+}) => {
+    const children = node.children ?? [];
+    const hasChildren = children.length > 0;
+    const isCollapsed = hasChildren && collapsedIds.has(node.id);
+    const isSelected = selectedNodeId === node.id;
+
+    return (
+        <li>
+            <div
+                className={`component-tree-node ${isSelected ? "selected" : ""}`}
+                style={{ paddingLeft: `${12 + depth * 16}px` }}
+            >
+                {hasChildren ? (
+                    <button
+                        className="component-tree-toggle"
+                        type="button"
+                        onClick={() => onToggle(node.id)}
+                        aria-expanded={!isCollapsed}
+                        aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${node.label}`}
+                    >
+                        {isCollapsed ? "▸" : "▾"}
+                    </button>
+                ) : (
+                    <span className="component-tree-spacer" aria-hidden="true">
+                        ·
+                    </span>
+                )}
+
+                <button
+                    className="component-tree-select"
+                    type="button"
+                    onClick={() => onSelect(node.id)}
+                >
+                    <span className="component-tree-label">{node.label}</span>
+                    <span className="component-tree-inline-meta">
+                        <span className="badge">{node.type}</span>
+                        {node.analysis?.totalErrors > 0 ? (
+                            <span className="badge issue-tag">
+                                errors: {node.analysis.totalErrors}
+                            </span>
+                        ) : null}
+                        {node.analysis?.totalConnections > 0 ? (
+                            <span className="badge connection-tag">
+                                links: {node.analysis.totalConnections}
+                            </span>
+                        ) : null}
+                        {!node.affectsDataPath ? (
+                            <span className="meta">layout-only</span>
+                        ) : null}
+                    </span>
+                </button>
+            </div>
+
+            {hasChildren && !isCollapsed ? (
+                <ul className="component-tree-children">
+                    {children.map((child) => (
+                        <TreeNode
+                            key={child.id}
+                            node={child}
+                            depth={depth + 1}
+                            collapsedIds={collapsedIds}
+                            onToggle={onToggle}
+                            selectedNodeId={selectedNodeId}
+                            onSelect={onSelect}
+                        />
+                    ))}
+                </ul>
+            ) : null}
+        </li>
+    );
+};
+
+const ComponentTree = ({ nodes, errors, componentTypes }) => {
+    const [selectedType, setSelectedType] = useState("all");
+    const [hideLayoutOnly, setHideLayoutOnly] = useState(false);
+    const [selectedNodeId, setSelectedNodeId] = useState("");
+    const [collapsedIds, setCollapsedIds] = useState(() => new Set());
+
+    useEffect(() => {
+        setCollapsedIds(buildInitialCollapsedSet(nodes));
+
+        const firstNode = nodes[0];
+        setSelectedNodeId(firstNode?.id ?? "");
+    }, [nodes]);
+
+    const filteredNodes = useMemo(
+        () => filterTreeNodes(nodes, selectedType, hideLayoutOnly),
+        [nodes, selectedType, hideLayoutOnly],
+    );
+
+    const visibleNodeIds = useMemo(
+        () => new Set(collectVisibleIds(filteredNodes)),
+        [filteredNodes],
+    );
+
+    useEffect(() => {
+        if (!selectedNodeId || visibleNodeIds.has(selectedNodeId)) {
+            return;
+        }
+
+        setSelectedNodeId(filteredNodes[0]?.id ?? "");
+    }, [selectedNodeId, visibleNodeIds, filteredNodes]);
+
+    const selectedNode = useMemo(
+        () => findNodeById(filteredNodes, selectedNodeId),
+        [filteredNodes, selectedNodeId],
+    );
+
+    const directErrorsByPath = useMemo(() => {
+        const map = new Map();
+
+        (errors ?? []).forEach((error) => {
+            const locators = error.locators ?? [];
+            locators.forEach((locator) => {
+                if (!locator.schemaPath) {
+                    return;
+                }
+
+                if (!map.has(locator.schemaPath)) {
+                    map.set(locator.schemaPath, []);
+                }
+
+                map.get(locator.schemaPath).push(error);
+            });
+        });
+
+        return map;
+    }, [errors]);
+
+    const selectedErrors = selectedNode
+        ? directErrorsByPath.get(selectedNode.id) ?? []
+        : [];
+
+    const handleToggleNode = (nodeId) => {
+        setCollapsedIds((previous) => {
+            const next = new Set(previous);
+            if (next.has(nodeId)) {
+                next.delete(nodeId);
+            } else {
+                next.add(nodeId);
+            }
+
+            return next;
+        });
+    };
+
+    if (!nodes.length) {
+        return (
+            <p className="empty-state">Run analysis to see the component tree.</p>
+        );
+    }
+
+    return (
+        <div className="component-tree-shell">
+            <div className="component-tree-controls">
+                <label className="component-tree-filter">
+                    <span>Component type</span>
+                    <select
+                        value={selectedType}
+                        onChange={(event) => setSelectedType(event.target.value)}
+                    >
+                        <option value="all">All types</option>
+                        {(componentTypes ?? []).map((type) => (
+                            <option key={type} value={type}>
+                                {type}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+
+                <label className="component-tree-check">
+                    <input
+                        type="checkbox"
+                        checked={hideLayoutOnly}
+                        onChange={(event) =>
+                            setHideLayoutOnly(event.target.checked)
+                        }
+                    />
+                    <span>Hide layout-only components</span>
+                </label>
+            </div>
+
+            <div className="component-tree-content">
+                <div className="component-tree-list-wrap">
+                    {filteredNodes.length ? (
+                        <ul className="component-tree-list">
+                            {filteredNodes.map((node) => (
+                                <TreeNode
+                                    key={node.id}
+                                    node={node}
+                                    depth={0}
+                                    collapsedIds={collapsedIds}
+                                    onToggle={handleToggleNode}
+                                    selectedNodeId={selectedNodeId}
+                                    onSelect={setSelectedNodeId}
+                                />
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="empty-state">
+                            No components match the active filters.
+                        </p>
+                    )}
+                </div>
+
+                <aside className="component-tree-detail" aria-live="polite">
+                    {selectedNode ? (
+                        <>
+                            <h4>{selectedNode.label}</h4>
+                            <div className="component-tree-detail-meta">
+                                <span className="badge">{selectedNode.type}</span>
+                                {selectedNode.key ? (
+                                    <span className="meta">key: {selectedNode.key}</span>
+                                ) : null}
+                                <span className="meta">schema path: {selectedNode.id}</span>
+                                <span className="meta">
+                                    data path: {selectedNode.dataPath || "not mapped"}
+                                </span>
+                                {selectedNode.hasCustomConditional ? (
+                                    <span className="badge conditional-tag">
+                                        custom conditional
+                                    </span>
+                                ) : null}
+                            </div>
+                            <div className="component-tree-detail-stats">
+                                <span className="badge issue-tag">
+                                    total errors: {selectedNode.analysis?.totalErrors ?? 0}
+                                </span>
+                                <span className="badge connection-tag">
+                                    total links: {selectedNode.analysis?.totalConnections ?? 0}
+                                </span>
+                                <span className="badge unresolved-tag">
+                                    unresolved out: {selectedNode.analysis?.totalUnresolvedOutgoing ?? 0}
+                                </span>
+                            </div>
+                            <div className="component-tree-detail-errors">
+                                <h5>Direct errors</h5>
+                                {selectedErrors.length ? (
+                                    <ul>
+                                        {selectedErrors.map((error, index) => (
+                                            <li key={`${selectedNode.id}-${index}`}>
+                                                {error.message}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="empty-state">No direct errors.</p>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <p className="empty-state">
+                            Select a component to view details.
+                        </p>
+                    )}
+                </aside>
+            </div>
+        </div>
+    );
+};
+
+export default ComponentTree;

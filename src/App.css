@@ -266,6 +266,173 @@
     margin-top: 6px;
 }
 
+.component-tree-shell {
+    height: 100%;
+    display: grid;
+    gap: 12px;
+    min-height: 0;
+}
+
+.component-tree-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+}
+
+.component-tree-filter {
+    display: grid;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: var(--ink-600);
+    font-weight: 600;
+}
+
+.component-tree-filter select {
+    border: 1px solid rgba(20, 26, 40, 0.14);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--ink-800);
+    border-radius: 10px;
+    min-width: 180px;
+    padding: 8px 10px;
+}
+
+.component-tree-check {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.82rem;
+    color: var(--ink-700);
+}
+
+.component-tree-content {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) minmax(280px, 0.8fr);
+    gap: 12px;
+}
+
+.component-tree-list-wrap,
+.component-tree-detail {
+    border: 1px solid rgba(20, 26, 40, 0.12);
+    background: rgba(255, 255, 255, 0.84);
+    border-radius: 12px;
+    padding: 12px;
+    overflow: auto;
+    min-height: 0;
+}
+
+.component-tree-list,
+.component-tree-children {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.component-tree-children {
+    margin-top: 4px;
+}
+
+.component-tree-node {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    border-radius: 10px;
+    padding: 6px 8px;
+}
+
+.component-tree-node.selected {
+    background: rgba(56, 123, 110, 0.12);
+    border: 1px solid rgba(56, 123, 110, 0.25);
+}
+
+.component-tree-toggle,
+.component-tree-spacer {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid rgba(20, 26, 40, 0.14);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-700);
+    font-size: 0.9rem;
+    line-height: 1;
+    margin-top: 2px;
+}
+
+.component-tree-toggle {
+    background: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+}
+
+.component-tree-spacer {
+    border-style: dashed;
+    color: var(--ink-400);
+}
+
+.component-tree-select {
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    display: grid;
+    gap: 5px;
+    color: inherit;
+    padding: 0;
+    min-width: 0;
+}
+
+.component-tree-label {
+    font-weight: 700;
+    color: var(--ink-900);
+    font-size: 0.9rem;
+}
+
+.component-tree-inline-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.component-tree-detail {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+}
+
+.component-tree-detail h4,
+.component-tree-detail h5 {
+    margin: 0;
+    color: var(--ink-900);
+}
+
+.component-tree-detail h5 {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-500);
+}
+
+.component-tree-detail-meta,
+.component-tree-detail-stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.component-tree-detail-errors ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    color: var(--ink-700);
+    display: grid;
+    gap: 6px;
+}
+
 .diagram-shell {
     height: min(56vh, 560px);
     min-height: 340px;
@@ -585,5 +752,9 @@
     .diagram-fullscreen-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .component-tree-content {
+        grid-template-columns: 1fr;
     }
 }
