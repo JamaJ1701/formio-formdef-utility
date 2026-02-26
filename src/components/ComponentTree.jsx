@@ -84,6 +84,40 @@ const collectVisibleIds = (nodes, ids = []) => {
     return ids;
 };
 
+const escapeRegExp = (value) =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const renderHighlightedText = (text, highlightTokens = []) => {
+    if (typeof text !== "string" || !text.length || !highlightTokens.length) {
+        return text;
+    }
+
+    const uniqueTokens = Array.from(
+        new Set(highlightTokens.filter(Boolean)),
+    ).sort((left, right) => right.length - left.length);
+
+    if (!uniqueTokens.length) {
+        return text;
+    }
+
+    const highlightRegex = new RegExp(
+        `(${uniqueTokens.map((token) => escapeRegExp(token)).join("|")})`,
+        "g",
+    );
+
+    return text.split(highlightRegex).map((part, index) => {
+        if (uniqueTokens.includes(part)) {
+            return (
+                <mark key={`hl-${index}`} className="logic-ref-highlight">
+                    {part}
+                </mark>
+            );
+        }
+
+        return <span key={`txt-${index}`}>{part}</span>;
+    });
+};
+
 const TreeNode = ({
     node,
     depth,
@@ -486,6 +520,134 @@ const ComponentTree = ({
                                             </span>
                                         ) : null}
                                     </div>
+
+                                    {(selectedNode.logicDetails ?? []).map(
+                                        (logicDetail) => {
+                                            const componentReferences = (
+                                                logicDetail.references ?? []
+                                            )
+                                                .filter((reference) =>
+                                                    reference.startsWith(
+                                                        "component:",
+                                                    ),
+                                                )
+                                                .map((reference) =>
+                                                    reference.slice(
+                                                        "component:".length,
+                                                    ),
+                                                );
+
+                                            const dataReferences = (
+                                                logicDetail.references ?? []
+                                            )
+                                                .filter((reference) =>
+                                                    reference.startsWith("data:"),
+                                                )
+                                                .map((reference) =>
+                                                    reference.slice(
+                                                        "data:".length,
+                                                    ),
+                                                );
+
+                                            return (
+                                                <div
+                                                    key={`${selectedNode.id}-${logicDetail.id}`}
+                                                    className="logic-detail-card"
+                                                >
+                                                    <div className="component-tree-detail-stats">
+                                                        <span className="badge conditional-tag">
+                                                            {logicDetail.name}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="logic-source-block">
+                                                        <span className="meta">
+                                                            type of logic
+                                                        </span>
+                                                        <div className="component-tree-detail-stats">
+                                                            <span className="meta">
+                                                                trigger: {logicDetail.triggerType}
+                                                            </span>
+                                                            {logicDetail.actionTypes?.length ? (
+                                                                <span className="meta">
+                                                                    actions: {logicDetail.actionTypes.join(
+                                                                        ", ",
+                                                                    )}
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="logic-source-block">
+                                                        <span className="meta">
+                                                            how configured
+                                                        </span>
+                                                        {logicDetail.sources?.length ? (
+                                                            logicDetail.sources.map(
+                                                                (
+                                                                    source,
+                                                                    index,
+                                                                ) => (
+                                                                    <div
+                                                                        key={`${logicDetail.id}-${source.label}-${index}`}
+                                                                        className="logic-source-block"
+                                                                    >
+                                                                        <span className="meta">
+                                                                            {source.label}
+                                                                        </span>
+                                                                        <pre className="logic-source-text">
+                                                                            {renderHighlightedText(
+                                                                                source.text,
+                                                                                logicDetail.highlightTokens,
+                                                                            )}
+                                                                        </pre>
+                                                                    </div>
+                                                                ),
+                                                            )
+                                                        ) : (
+                                                            <span className="meta">
+                                                                No explicit source expression configured.
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="logic-source-block">
+                                                        <span className="meta">
+                                                            other components mentioned
+                                                        </span>
+                                                        {componentReferences.length ? (
+                                                            <div className="component-tree-detail-stats">
+                                                                {componentReferences.map(
+                                                                    (
+                                                                        componentReference,
+                                                                    ) => (
+                                                                        <span
+                                                                            key={`${logicDetail.id}-component-${componentReference}`}
+                                                                            className="badge connection-tag"
+                                                                        >
+                                                                            {componentReference}
+                                                                        </span>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="meta">
+                                                                None
+                                                            </span>
+                                                        )}
+
+                                                        {dataReferences.length ? (
+                                                            <div className="component-tree-detail-stats">
+                                                                <span className="meta">
+                                                                    form data: {dataReferences.join(", ")}
+                                                                </span>
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
+                                                </div>
+                                            );
+                                        },
+                                    )}
                                 </div>
                             ) : null}
                             <div className="component-tree-detail-stats">

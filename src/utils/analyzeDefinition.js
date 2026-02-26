@@ -49,6 +49,202 @@ const FORMIO_ACTION_TYPES = new Set([
     "customAction",
 ]);
 
+const appendReferenceMatches = (
+    references,
+    highlightTokens,
+    text,
+    componentKeys = [],
+) => {
+    if (typeof text !== "string" || !text.trim()) {
+        return;
+    }
+
+    const dataPathRegex = /\b(?:data|row)\s*(?:\.\s*[A-Za-z_$][\w$]*|\[\s*["'][^"']+["']\s*\])/g;
+    const dataMatches = text.match(dataPathRegex) ?? [];
+
+    dataMatches.forEach((match) => {
+        const normalized = match.replace(/\s+/g, "");
+        references.add(`data:${normalized}`);
+        highlightTokens.add(match);
+    });
+
+    componentKeys.forEach((componentKey) => {
+        const keyRegex = new RegExp(`\\b${componentKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g");
+        if (keyRegex.test(text)) {
+            references.add(`component:${componentKey}`);
+            highlightTokens.add(componentKey);
+        }
+    });
+};
+
+const extractConfiguredLogicDetails = (component, componentKeys = []) => {
+    const details = [];
+    const logicEntries = Array.isArray(component?.logic) ? component.logic : [];
+
+    logicEntries.forEach((logic, index) => {
+        const name =
+            typeof logic?.name === "string" && logic.name.trim()
+                ? logic.name.trim()
+                : `Logic ${index + 1}`;
+
+        const triggerTypeRaw =
+            typeof logic?.trigger?.type === "string"
+                ? logic.trigger.type.trim()
+                : "";
+        const triggerType = triggerTypeRaw
+            ? triggerTypeRaw.toLowerCase()
+            : "configured";
+
+        const actionTypes = Array.isArray(logic?.actions)
+            ? logic.actions
+                  .map((action) =>
+                      typeof action?.type === "string" && action.type.trim()
+                          ? action.type.trim()
+                          : "configured",
+                  )
+                  .filter(Boolean)
+            : [];
+
+        const sources = [];
+        const references = new Set();
+        const highlightTokens = new Set();
+
+        if (typeof logic?.trigger?.javascript === "string") {
+            sources.push({
+                label: "trigger javascript",
+                text: logic.trigger.javascript,
+            });
+            appendReferenceMatches(
+                references,
+                highlightTokens,
+                logic.trigger.javascript,
+                componentKeys,
+            );
+        }
+
+        if (logic?.trigger?.json) {
+            const jsonText = JSON.stringify(logic.trigger.json, null, 2);
+            sources.push({
+                label: "trigger json",
+                text: jsonText,
+            });
+            appendReferenceMatches(
+                references,
+                highlightTokens,
+                jsonText,
+                componentKeys,
+            );
+        }
+
+        if (Array.isArray(logic?.actions)) {
+            logic.actions.forEach((action, actionIndex) => {
+                const actionLabel =
+                    typeof action?.name === "string" && action.name.trim()
+                        ? action.name.trim()
+                        : `action ${actionIndex + 1}`;
+
+                [
+                    ["custom action", action?.customAction],
+                    ["value", action?.value],
+                    ["schema", action?.schemaDefinition],
+                ].forEach(([typeLabel, sourceText]) => {
+                    if (typeof sourceText !== "string") {
+                        return;
+                    }
+
+                    sources.push({
+                        label: `${actionLabel} ${typeLabel}`,
+                        text: sourceText,
+                    });
+                    appendReferenceMatches(
+                        references,
+                        highlightTokens,
+                        sourceText,
+                        componentKeys,
+                    );
+                });
+            });
+        }
+
+        details.push({
+            id: `advanced-${index}`,
+            name,
+            triggerType,
+            actionTypes: Array.from(new Set(actionTypes)),
+            references: Array.from(references).sort((left, right) =>
+                left.localeCompare(right),
+            ),
+            highlightTokens: Array.from(highlightTokens).sort(
+                (left, right) => right.length - left.length,
+            ),
+            sources,
+        });
+    });
+
+    const conditional = component?.conditional;
+    if (conditional && typeof conditional === "object") {
+        const references = new Set();
+        const highlightTokens = new Set();
+
+        const when =
+            typeof conditional?.when === "string" ? conditional.when.trim() : "";
+        if (when) {
+            references.add(`component:${when}`);
+            highlightTokens.add(when);
+        }
+
+        (conditional.conditions ?? []).forEach((condition) => {
+            const targetComponent =
+                typeof condition?.component === "string"
+                    ? condition.component.trim()
+                    : "";
+            if (targetComponent) {
+                references.add(`component:${targetComponent}`);
+                highlightTokens.add(targetComponent);
+            }
+        });
+
+        if (typeof conditional?.custom === "string") {
+            appendReferenceMatches(
+                references,
+                highlightTokens,
+                conditional.custom,
+                componentKeys,
+            );
+        }
+
+        if (conditional?.json) {
+            appendReferenceMatches(
+                references,
+                highlightTokens,
+                JSON.stringify(conditional.json, null, 2),
+                componentKeys,
+            );
+        }
+
+        details.push({
+            id: "conditional",
+            name: "Conditional Visibility",
+            triggerType: "conditional",
+            actionTypes: ["show/hide"],
+            references: Array.from(references).sort((left, right) =>
+                left.localeCompare(right),
+            ),
+            highlightTokens: Array.from(highlightTokens).sort(
+                (left, right) => right.length - left.length,
+            ),
+            sources: [
+                {
+                    label: "conditional",
+                    text: JSON.stringify(conditional, null, 2),
+                },
+            ],
+        });
+    }
+
+    return details;
+};
+
 const extractLogicTypes = (component) => {
     const logicEntries = Array.isArray(component?.logic) ? component.logic : [];
 
@@ -209,17 +405,22 @@ const buildTreeAnalysisMaps = (errors, connections, unresolvedConnections) => {
     };
 };
 
-const enrichTreeWithAnalysis = (nodes, maps, metadataByPath) => {
+const enrichTreeWithAnalysis = (nodes, maps, metadataByPath, componentKeys) => {
     return nodes.map((node) => {
         const children = enrichTreeWithAnalysis(
             node.children ?? [],
             maps,
             metadataByPath,
+            componentKeys,
         );
         const metadata = metadataByPath[node.id];
         const dataPath = metadata?.dataPath || "";
         const affectsDataPath = Boolean(dataPath);
         const { hasLogic, logicTypes } = extractLogicTypes(metadata?.component);
+        const logicDetails = extractConfiguredLogicDetails(
+            metadata?.component,
+            componentKeys,
+        );
         const conditionalLogicTypes = Array.isArray(node.conditionalLogicTypes)
             ? node.conditionalLogicTypes
             : [];
@@ -306,6 +507,7 @@ const enrichTreeWithAnalysis = (nodes, maps, metadataByPath) => {
             affectsDataPath,
             hasLogic: hasAnyLogic,
             logicTypes: combinedLogicTypes,
+            logicDetails,
             analysis: {
                 directErrors,
                 directIncoming,
@@ -396,6 +598,16 @@ export const analyzeDefinition = (raw) => {
     try {
         const indexed = indexComponentsByPath(components);
         const metadataByPath = indexComponentMetadataByPath(components);
+        const componentKeys = Array.from(
+            new Set(
+                Object.values(metadataByPath)
+                    .map((metadata) => metadata?.component?.key)
+                    .filter(
+                        (key) =>
+                            typeof key === "string" && key.trim().length > 0,
+                    ),
+            ),
+        );
         componentCount = Object.keys(metadataByPath).length;
         const detectedComponentTypes = Array.from(
             new Set(
@@ -441,6 +653,7 @@ export const analyzeDefinition = (raw) => {
                 connectionsAnalysis.unresolved,
             ),
             metadataByPath,
+            componentKeys,
         );
 
         return {

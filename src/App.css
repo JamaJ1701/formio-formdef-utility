@@ -586,6 +586,41 @@
     color: var(--ink-500);
 }
 
+.logic-detail-card {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(20, 26, 40, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.75);
+}
+
+.logic-source-block {
+    display: grid;
+    gap: 4px;
+}
+
+.logic-source-text {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(20, 26, 40, 0.1);
+    background: rgba(20, 26, 40, 0.04);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.logic-ref-highlight {
+    background: rgba(246, 86, 86, 0.2);
+    color: rgba(140, 32, 32, 0.95);
+    border-radius: 4px;
+    padding: 0 2px;
+    font-weight: 700;
+}
+
 .connections-wrap {
     display: grid;
     gap: 12px;
