@@ -31,6 +31,8 @@ const extractFromScript = (script, knownKeys) => {
         /\{\{\s*(?:submission\.data|data|row)\??\.([A-Za-z_][\w$]*)/g,
         /\{\{\s*(?:submission\.data|data|row)\[['"`]([A-Za-z_][\w$]*)['"`]\]/g,
         /\binstance\.getValue\(\s*['"`]([A-Za-z_][\w$]*)['"`]\s*\)/g,
+        /\b(?:instance|this)\.root\.getComponent\(\s*['"`]([A-Za-z_][\w$]*)['"`]\s*\)/g,
+        /\b(?:root|form)\.getComponent\(\s*['"`]([A-Za-z_][\w$]*)['"`]\s*\)/g,
     ];
 
     patterns.forEach((pattern) => {
@@ -80,6 +82,27 @@ const extractFromJsonLogic = (value, knownKeys, references = new Set()) => {
     });
 
     return references;
+};
+
+const parseJsonLogicMaybe = (value) => {
+    if (typeof value !== "string") {
+        return value;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return value;
+    }
+
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+        return value;
+    }
+
+    try {
+        return JSON.parse(trimmed);
+    } catch {
+        return value;
+    }
 };
 
 const buildComponentCatalog = (flattened) => {
@@ -167,7 +190,9 @@ export const detectConnections = (flattened) => {
     };
 
     const addJsonLogicReferences = (sourcePath, json, type, context) => {
-        [...extractFromJsonLogic(json, knownKeys)].forEach((key) => {
+        const parsed = parseJsonLogicMaybe(json);
+
+        [...extractFromJsonLogic(parsed, knownKeys)].forEach((key) => {
             addReference(sourcePath, key, type, context);
         });
     };
@@ -187,11 +212,7 @@ export const detectConnections = (flattened) => {
         Object.entries(value).forEach(([key, child]) => {
             const path = `${currentPath}.${key}`;
 
-            if (
-                DIRECT_KEY_FIELDS.has(key) &&
-                typeof child === "string" &&
-                knownKeys.has(child)
-            ) {
+            if (DIRECT_KEY_FIELDS.has(key) && typeof child === "string") {
                 addReference(sourcePath, child, `direct:${key}`, path);
             }
 
@@ -216,6 +237,18 @@ export const detectConnections = (flattened) => {
                 "conditional:simple",
                 `${sourcePath}.conditional.when`,
             );
+        }
+        if (Array.isArray(conditional?.conditions)) {
+            conditional.conditions.forEach((condition, conditionIndex) => {
+                if (typeof condition?.component === "string") {
+                    addReference(
+                        sourcePath,
+                        condition.component,
+                        "conditional:conditions",
+                        `${sourcePath}.conditional.conditions[${conditionIndex}].component`,
+                    );
+                }
+            });
         }
         if (conditional?.json) {
             addJsonLogicReferences(
@@ -317,6 +350,21 @@ export const detectConnections = (flattened) => {
                         trigger.simple.when,
                         "logic:trigger:simple",
                         `${sourcePath}.logic[${logicIndex}].trigger.simple.when`,
+                    );
+                }
+
+                if (Array.isArray(trigger?.simple?.conditions)) {
+                    trigger.simple.conditions.forEach(
+                        (condition, conditionIndex) => {
+                            if (typeof condition?.component === "string") {
+                                addReference(
+                                    sourcePath,
+                                    condition.component,
+                                    "logic:trigger:conditions",
+                                    `${sourcePath}.logic[${logicIndex}].trigger.simple.conditions[${conditionIndex}].component`,
+                                );
+                            }
+                        },
                     );
                 }
 

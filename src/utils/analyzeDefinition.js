@@ -1,7 +1,107 @@
 import { detectConnections } from "./analyzer/connections";
 import { buildTreeFromSchema } from "./analyzer/tree";
-import { indexComponentsByPath } from "./analyzer/traverse";
+import {
+    indexComponentMetadataByPath,
+    indexComponentsByPath,
+} from "./analyzer/traverse";
 import { validateComponent } from "./analyzer/validation";
+
+const incrementCount = (map, key) => {
+    if (!key) return;
+    map.set(key, (map.get(key) ?? 0) + 1);
+};
+
+const getPrimaryPath = (value) => {
+    if (typeof value !== "string") {
+        return "";
+    }
+
+    return value.split(",")[0].trim();
+};
+
+const buildTreeAnalysisMaps = (errors, connections, unresolvedConnections) => {
+    const errorCounts = new Map();
+    const incomingCounts = new Map();
+    const outgoingCounts = new Map();
+    const unresolvedOutgoingCounts = new Map();
+
+    errors.forEach((error) => {
+        incrementCount(errorCounts, getPrimaryPath(error.path));
+    });
+
+    connections.forEach((connection) => {
+        incrementCount(outgoingCounts, connection.sourcePath);
+        incrementCount(incomingCounts, connection.targetPath);
+    });
+
+    unresolvedConnections.forEach((connection) => {
+        incrementCount(unresolvedOutgoingCounts, connection.sourcePath);
+    });
+
+    return {
+        errorCounts,
+        incomingCounts,
+        outgoingCounts,
+        unresolvedOutgoingCounts,
+    };
+};
+
+const enrichTreeWithAnalysis = (nodes, maps) => {
+    return nodes.map((node) => {
+        const children = enrichTreeWithAnalysis(node.children ?? [], maps);
+
+        const directErrors = maps.errorCounts.get(node.id) ?? 0;
+        const directIncoming = maps.incomingCounts.get(node.id) ?? 0;
+        const directOutgoing = maps.outgoingCounts.get(node.id) ?? 0;
+        const directUnresolvedOutgoing =
+            maps.unresolvedOutgoingCounts.get(node.id) ?? 0;
+
+        const childRollup = children.reduce(
+            (total, child) => {
+                const analysis = child.analysis ?? {};
+                return {
+                    totalErrors:
+                        total.totalErrors + (analysis.totalErrors ?? 0),
+                    totalIncoming:
+                        total.totalIncoming + (analysis.totalIncoming ?? 0),
+                    totalOutgoing:
+                        total.totalOutgoing + (analysis.totalOutgoing ?? 0),
+                    totalUnresolvedOutgoing:
+                        total.totalUnresolvedOutgoing +
+                        (analysis.totalUnresolvedOutgoing ?? 0),
+                };
+            },
+            {
+                totalErrors: 0,
+                totalIncoming: 0,
+                totalOutgoing: 0,
+                totalUnresolvedOutgoing: 0,
+            },
+        );
+
+        const totalErrors = directErrors + childRollup.totalErrors;
+        const totalIncoming = directIncoming + childRollup.totalIncoming;
+        const totalOutgoing = directOutgoing + childRollup.totalOutgoing;
+        const totalUnresolvedOutgoing =
+            directUnresolvedOutgoing + childRollup.totalUnresolvedOutgoing;
+
+        return {
+            ...node,
+            children,
+            analysis: {
+                directErrors,
+                directIncoming,
+                directOutgoing,
+                directUnresolvedOutgoing,
+                totalErrors,
+                totalIncoming,
+                totalOutgoing,
+                totalUnresolvedOutgoing,
+                totalConnections: totalIncoming + totalOutgoing,
+            },
+        };
+    });
+};
 
 export const analyzeDefinition = (raw) => {
     const errors = [];
@@ -67,36 +167,45 @@ export const analyzeDefinition = (raw) => {
     }
 
     let componentCount = 0;
-    const duplicateKeys = new Map();
+    const duplicateDataPaths = new Map();
 
     try {
         const indexed = indexComponentsByPath(components);
-        componentCount = Object.keys(indexed).length;
+        const metadataByPath = indexComponentMetadataByPath(components);
+        componentCount = Object.keys(metadataByPath).length;
 
-        Object.entries(indexed).forEach(([path, component]) => {
+        Object.entries(metadataByPath).forEach(([path, metadata]) => {
+            const { component, dataPath } = metadata;
             validateComponent(component, path, errors);
 
-            if (component.key) {
-                if (duplicateKeys.has(component.key)) {
-                    duplicateKeys.get(component.key).push(path);
+            if (dataPath) {
+                if (duplicateDataPaths.has(dataPath)) {
+                    duplicateDataPaths.get(dataPath).push(path);
                 } else {
-                    duplicateKeys.set(component.key, [path]);
+                    duplicateDataPaths.set(dataPath, [path]);
                 }
             }
         });
 
-        // Report duplicate keys
-        duplicateKeys.forEach((paths, key) => {
+        // Report duplicate effective submission paths (scope-aware).
+        duplicateDataPaths.forEach((paths, dataPath) => {
             if (paths.length > 1) {
                 errors.push({
                     path: paths.join(", "),
-                    message: `Duplicate key "${key}" found in ${paths.length} components.`,
+                    message: `Duplicate data path "${dataPath}" found in ${paths.length} components. Keys can repeat across different containers, but final submission paths must be unique.`,
                 });
             }
         });
 
-        const tree = buildTreeFromSchema(components);
         const connectionsAnalysis = detectConnections(indexed);
+        const tree = enrichTreeWithAnalysis(
+            buildTreeFromSchema(components),
+            buildTreeAnalysisMaps(
+                errors,
+                connectionsAnalysis.connections,
+                connectionsAnalysis.unresolved,
+            ),
+        );
 
         return {
             errors,

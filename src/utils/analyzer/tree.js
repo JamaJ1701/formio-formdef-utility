@@ -1,5 +1,10 @@
 import { normalizeLabel } from "./normalizeLabel";
 
+const hasCustomConditional = (component) => {
+    const custom = component?.conditional?.custom;
+    return typeof custom === "string" && custom.trim().length > 0;
+};
+
 const collectChildren = (component, basePath) => {
     const children = [];
 
@@ -65,18 +70,25 @@ export const buildTreeFromSchema = (components, basePath = "components") => {
         return [];
     }
 
-    return components
-        .filter((component) => component && typeof component === "object")
-        .map((component, index) => {
-            const path = `${basePath}[${index}]`;
+    const tree = [];
 
-            return {
-                id: path,
-                label: normalizeLabel(component),
-                type: component?.type ?? "unknown",
-                key: component?.key ?? "",
-                path,
-                children: collectChildren(component, path),
-            };
+    components.forEach((component, index) => {
+        if (!component || typeof component !== "object") {
+            return;
+        }
+
+        const path = `${basePath}[${index}]`;
+
+        tree.push({
+            id: path,
+            label: normalizeLabel(component),
+            type: component?.type ?? "unknown",
+            key: component?.key ?? "",
+            hasCustomConditional: hasCustomConditional(component),
+            path,
+            children: collectChildren(component, path),
         });
+    });
+
+    return tree;
 };

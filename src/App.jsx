@@ -1,6 +1,6 @@
 import { useState } from "react";
 import "./App.css";
-import Tree from "./components/Tree";
+import TreeDiagram from "./components/TreeDiagram";
 import Connections from "./components/Connections";
 import sampleJson from "./data/sampleJson";
 import { analyzeDefinition } from "./utils/analyzeDefinition";
@@ -119,6 +119,14 @@ function App() {
                     </div>
 
                     <div className="panel-body">
+                        <div className="tree-wrap">
+                            <h3>Component diagram</h3>
+                            <TreeDiagram
+                                nodes={analysis?.tree ?? []}
+                                connections={analysis?.connections ?? []}
+                            />
+                        </div>
+
                         <div className="errors">
                             <h3>Errors</h3>
                             {analysis?.errors?.length ? (
@@ -142,11 +150,6 @@ function App() {
                                     No errors found yet.
                                 </p>
                             )}
-                        </div>
-
-                        <div className="tree-wrap">
-                            <h3>Component tree</h3>
-                            <Tree nodes={analysis?.tree ?? []} />
                         </div>
 
                         <div className="connections">
