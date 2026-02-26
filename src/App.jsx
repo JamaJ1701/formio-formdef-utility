@@ -12,9 +12,6 @@ export default function App() {
     const [analysis, setAnalysis] = useState(null);
     const [isFormCollapsed, setIsFormCollapsed] = useState(false);
     const [isDiagramFullscreen, setIsDiagramFullscreen] = useState(false);
-    const [isErrorsCollapsed, setIsErrorsCollapsed] = useState(false);
-    const [isUnresolvedCollapsed, setIsUnresolvedCollapsed] = useState(false);
-    const [isConnectionsCollapsed, setIsConnectionsCollapsed] = useState(false);
 
     const hasFormJson = formJson.trim().length > 0;
 
@@ -39,9 +36,6 @@ export default function App() {
         setAnalysis(null);
         setIsFormCollapsed(false);
         setIsDiagramFullscreen(false);
-        setIsErrorsCollapsed(false);
-        setIsUnresolvedCollapsed(false);
-        setIsConnectionsCollapsed(false);
     };
 
     const summaryRows = analysis
@@ -80,7 +74,7 @@ export default function App() {
             </header>
 
             <div className="grid">
-                <section className="panel">
+                <section className="panel panel-analysis">
                     <div className="panel-header">
                         <div>
                             <h2 className="panel-title">Form definition</h2>
@@ -184,161 +178,13 @@ export default function App() {
                             <ComponentTree
                                 nodes={analysis?.tree ?? []}
                                 errors={analysis?.errors ?? []}
+                                unresolvedConnections={
+                                    analysis?.unresolvedConnections ?? []
+                                }
                                 componentTypes={
                                     analysis?.stats?.componentTypes ?? []
                                 }
                             />
-                        </div>
-
-                        <div className="errors">
-                            <div className="section-head">
-                                <h3>Errors</h3>
-                                <button
-                                    className="section-toggle"
-                                    type="button"
-                                    onClick={() =>
-                                        setIsErrorsCollapsed((value) => !value)
-                                    }
-                                    aria-expanded={!isErrorsCollapsed}
-                                    aria-controls="errors-section-content"
-                                >
-                                    <span aria-hidden="true">
-                                        {isErrorsCollapsed ? "▸" : "▾"}
-                                    </span>
-                                </button>
-                            </div>
-
-                            {!isErrorsCollapsed ? (
-                                analysis?.errors?.length ? (
-                                    <ul id="errors-section-content">
-                                        {analysis.errors.map((error, index) => (
-                                            <li
-                                                key={`${error.path}-${index}`}
-                                                className="error-item"
-                                            >
-                                                <span className="error-path">
-                                                    {error.path}
-                                                </span>
-                                                <span className="error-message">
-                                                    {error.message}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p
-                                        id="errors-section-content"
-                                        className="empty-state"
-                                    >
-                                        No errors found yet.
-                                    </p>
-                                )
-                            ) : null}
-                        </div>
-
-                        <div className="connections">
-                            <div className="section-head">
-                                <h3>Unresolved</h3>
-                                <button
-                                    className="section-toggle"
-                                    type="button"
-                                    onClick={() =>
-                                        setIsUnresolvedCollapsed(
-                                            (value) => !value,
-                                        )
-                                    }
-                                    aria-expanded={!isUnresolvedCollapsed}
-                                    aria-controls="unresolved-section-content"
-                                >
-                                    <span aria-hidden="true">
-                                        {isUnresolvedCollapsed ? "▸" : "▾"}
-                                    </span>
-                                </button>
-                            </div>
-
-                            {!isUnresolvedCollapsed ? (
-                                analysis?.unresolvedConnections?.length ? (
-                                    <ul id="unresolved-section-content">
-                                        {analysis.unresolvedConnections.map(
-                                            (connection, index) => (
-                                                <li
-                                                    key={`${connection.sourcePath}-${connection.targetKey}-${index}`}
-                                                    className="unresolved-item"
-                                                >
-                                                    <div className="connection-route">
-                                                        <span className="connection-node">
-                                                            {
-                                                                connection.sourceLabel
-                                                            }
-                                                        </span>
-                                                        <span className="connection-arrow">
-                                                            →
-                                                        </span>
-                                                        <span className="connection-node">
-                                                            {
-                                                                connection.targetKey
-                                                            }
-                                                        </span>
-                                                    </div>
-                                                    <div className="connection-meta">
-                                                        <span className="badge">
-                                                            {
-                                                                connection.connectionType
-                                                            }
-                                                        </span>
-                                                        <span className="meta">
-                                                            unresolved key
-                                                        </span>
-                                                        <span className="meta">
-                                                            configured at rule
-                                                            field (schema path):{" "}
-                                                            {connection.context}
-                                                        </span>
-                                                    </div>
-                                                </li>
-                                            ),
-                                        )}
-                                    </ul>
-                                ) : (
-                                    <p
-                                        id="unresolved-section-content"
-                                        className="empty-state"
-                                    >
-                                        No unresolved references found.
-                                    </p>
-                                )
-                            ) : null}
-                        </div>
-
-                        <div className="connections">
-                            <div className="section-head">
-                                <h3>Connections</h3>
-                                <button
-                                    className="section-toggle"
-                                    type="button"
-                                    onClick={() =>
-                                        setIsConnectionsCollapsed(
-                                            (value) => !value,
-                                        )
-                                    }
-                                    aria-expanded={!isConnectionsCollapsed}
-                                    aria-controls="connections-section-content"
-                                >
-                                    <span aria-hidden="true">
-                                        {isConnectionsCollapsed ? "▸" : "▾"}
-                                    </span>
-                                </button>
-                            </div>
-
-                            {!isConnectionsCollapsed ? (
-                                <div id="connections-section-content">
-                                    <Connections
-                                        connections={
-                                            analysis?.connections ?? []
-                                        }
-                                    />
-                                </div>
-                            ) : null}
                         </div>
                     </div>
                 </section>

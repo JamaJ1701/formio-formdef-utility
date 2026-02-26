@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const FORMIO_LAYOUT_COMPONENT_TYPES = new Set([
     "columns",
@@ -137,6 +137,15 @@ const TreeNode = ({
                                 links: {node.analysis.totalConnections}
                             </span>
                         ) : null}
+                        {node.analysis?.totalUnresolvedOutgoing > 0 ? (
+                            <span className="badge unresolved-tag">
+                                unresolved:{" "}
+                                {node.analysis.totalUnresolvedOutgoing}
+                            </span>
+                        ) : null}
+                        {node.hasLogic ? (
+                            <span className="badge conditional-tag">logic</span>
+                        ) : null}
                         {isLayoutComponentType(node.type) ? (
                             <span className="meta">layout-only</span>
                         ) : null}
@@ -163,11 +172,17 @@ const TreeNode = ({
     );
 };
 
-const ComponentTree = ({ nodes, errors, componentTypes }) => {
+const ComponentTree = ({
+    nodes,
+    errors,
+    unresolvedConnections,
+    componentTypes,
+}) => {
     const [selectedType, setSelectedType] = useState("all");
     const [hideLayoutOnly, setHideLayoutOnly] = useState(false);
     const [selectedNodeIdOverride, setSelectedNodeIdOverride] = useState("");
     const [collapsedToggles, setCollapsedToggles] = useState(() => new Set());
+    const detailPanelRef = useRef(null);
 
     const filteredNodes = useMemo(
         () => filterTreeNodes(nodes, selectedType, hideLayoutOnly),
@@ -236,6 +251,92 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
     const selectedErrors = selectedNode
         ? (directErrorsByPath.get(selectedNode.id) ?? [])
         : [];
+
+    const unresolvedBySourcePath = useMemo(() => {
+        const map = new Map();
+
+        (unresolvedConnections ?? []).forEach((connection) => {
+            if (!connection.sourcePath) {
+                return;
+            }
+
+            if (!map.has(connection.sourcePath)) {
+                map.set(connection.sourcePath, []);
+            }
+
+            map.get(connection.sourcePath).push(connection);
+        });
+
+        return map;
+    }, [unresolvedConnections]);
+
+    const selectedUnresolvedReferences = selectedNode
+        ? (unresolvedBySourcePath.get(selectedNode.id) ?? [])
+        : [];
+
+    const selectedTriggerLogicTypes = useMemo(() => {
+        if (!selectedNode?.logicTypes?.length) {
+            return [];
+        }
+
+        return selectedNode.logicTypes
+            .filter((logicType) => logicType.startsWith("trigger:"))
+            .map((logicType) => logicType.slice("trigger:".length));
+    }, [selectedNode]);
+
+    const selectedActionLogicTypes = useMemo(() => {
+        if (!selectedNode?.logicTypes?.length) {
+            return [];
+        }
+
+        return selectedNode.logicTypes
+            .filter((logicType) => logicType.startsWith("action:"))
+            .map((logicType) => logicType.slice("action:".length));
+    }, [selectedNode]);
+
+    const selectedOtherLogicTypes = useMemo(() => {
+        if (!selectedNode?.logicTypes?.length) {
+            return [];
+        }
+
+        return selectedNode.logicTypes.filter(
+            (logicType) =>
+                !logicType.startsWith("trigger:") &&
+                !logicType.startsWith("action:") &&
+                !logicType.startsWith("conditional:"),
+        );
+    }, [selectedNode]);
+
+    const selectedConditionalLogicTypes = useMemo(() => {
+        if (!selectedNode?.logicTypes?.length) {
+            return [];
+        }
+
+        return selectedNode.logicTypes
+            .filter((logicType) => logicType.startsWith("conditional:"))
+            .map((logicType) => logicType.slice("conditional:".length));
+    }, [selectedNode]);
+
+    useEffect(() => {
+        if (!selectedNodeId) {
+            return;
+        }
+
+        const panel = detailPanelRef.current;
+        if (!panel) {
+            return;
+        }
+
+        const rect = panel.getBoundingClientRect();
+        const isInView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+
+        if (!isInView) {
+            panel.scrollIntoView({
+                block: "nearest",
+                behavior: "smooth",
+            });
+        }
+    }, [selectedNodeId]);
 
     const handleToggleNode = (nodeId) => {
         setCollapsedToggles((previous) => {
@@ -313,7 +414,11 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                     )}
                 </div>
 
-                <aside className="component-tree-detail" aria-live="polite">
+                <aside
+                    ref={detailPanelRef}
+                    className="component-tree-detail"
+                    aria-live="polite"
+                >
                     {selectedNode ? (
                         <>
                             <h4>{selectedNode.label}</h4>
@@ -338,7 +443,51 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                                         custom conditional
                                     </span>
                                 ) : null}
+                                {selectedNode.hasLogic ? (
+                                    <span className="badge conditional-tag">
+                                        has logic
+                                    </span>
+                                ) : null}
                             </div>
+                            {selectedNode.logicTypes?.length ? (
+                                <div className="component-tree-detail-errors">
+                                    <h5>Configured logic</h5>
+                                    <div className="component-tree-detail-stats">
+                                        {selectedTriggerLogicTypes.length ? (
+                                            <span className="meta">
+                                                trigger:{" "}
+                                                {selectedTriggerLogicTypes.join(
+                                                    ", ",
+                                                )}
+                                            </span>
+                                        ) : null}
+                                        {selectedActionLogicTypes.length ? (
+                                            <span className="meta">
+                                                action:{" "}
+                                                {selectedActionLogicTypes.join(
+                                                    ", ",
+                                                )}
+                                            </span>
+                                        ) : null}
+                                        {selectedConditionalLogicTypes.length ? (
+                                            <span className="meta">
+                                                conditional:{" "}
+                                                {selectedConditionalLogicTypes.join(
+                                                    ", ",
+                                                )}
+                                            </span>
+                                        ) : null}
+                                        {selectedOtherLogicTypes.length ? (
+                                            <span className="meta">
+                                                other:{" "}
+                                                {selectedOtherLogicTypes.join(
+                                                    ", ",
+                                                )}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            ) : null}
                             <div className="component-tree-detail-stats">
                                 <span className="badge issue-tag">
                                     total errors:{" "}
@@ -370,6 +519,28 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                                 ) : (
                                     <p className="empty-state">
                                         No direct errors.
+                                    </p>
+                                )}
+                            </div>
+                            <div className="component-tree-detail-errors">
+                                <h5>Unresolved references</h5>
+                                {selectedUnresolvedReferences.length ? (
+                                    <ul>
+                                        {selectedUnresolvedReferences.map(
+                                            (connection, index) => (
+                                                <li
+                                                    key={`${selectedNode.id}-${connection.targetKey}-${index}`}
+                                                >
+                                                    {connection.targetKey} (
+                                                    {connection.connectionType})
+                                                    at {connection.context}
+                                                </li>
+                                            ),
+                                        )}
+                                    </ul>
+                                ) : (
+                                    <p className="empty-state">
+                                        No unresolved references.
                                     </p>
                                 )}
                             </div>

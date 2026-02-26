@@ -40,6 +40,74 @@ const mergeCountObjects = (left = {}, right = {}) => {
     return merged;
 };
 
+const FORMIO_TRIGGER_TYPES = new Set(["simple", "javascript", "json", "event"]);
+
+const FORMIO_ACTION_TYPES = new Set([
+    "property",
+    "value",
+    "mergeComponentSchema",
+    "customAction",
+]);
+
+const extractLogicTypes = (component) => {
+    const logicEntries = Array.isArray(component?.logic) ? component.logic : [];
+
+    if (!logicEntries.length) {
+        return {
+            hasLogic: false,
+            logicTypes: [],
+        };
+    }
+
+    const logicTypes = new Set();
+
+    logicEntries.forEach((logic) => {
+        const triggerTypeRaw =
+            typeof logic?.trigger?.type === "string"
+                ? logic.trigger.type.trim()
+                : "";
+        const triggerType = triggerTypeRaw.toLowerCase();
+
+        if (triggerType) {
+            if (FORMIO_TRIGGER_TYPES.has(triggerType)) {
+                logicTypes.add(`trigger:${triggerType}`);
+            } else {
+                logicTypes.add(`trigger:unsupported(${triggerTypeRaw})`);
+            }
+        } else if (logic?.trigger && typeof logic.trigger === "object") {
+            logicTypes.add("trigger:configured");
+        }
+
+        if (Array.isArray(logic?.actions)) {
+            logic.actions.forEach((action) => {
+                const actionType =
+                    typeof action?.type === "string" ? action.type.trim() : "";
+
+                if (actionType) {
+                    if (FORMIO_ACTION_TYPES.has(actionType)) {
+                        logicTypes.add(`action:${actionType}`);
+                    } else {
+                        logicTypes.add(`action:unsupported(${actionType})`);
+                    }
+                } else if (action && typeof action === "object") {
+                    logicTypes.add("action:configured");
+                }
+            });
+        }
+    });
+
+    if (!logicTypes.size) {
+        logicTypes.add("configured");
+    }
+
+    return {
+        hasLogic: true,
+        logicTypes: Array.from(logicTypes).sort((left, right) =>
+            left.localeCompare(right),
+        ),
+    };
+};
+
 const getPrimaryPath = (value) => {
     if (typeof value !== "string") {
         return "";
@@ -151,6 +219,14 @@ const enrichTreeWithAnalysis = (nodes, maps, metadataByPath) => {
         const metadata = metadataByPath[node.id];
         const dataPath = metadata?.dataPath || "";
         const affectsDataPath = Boolean(dataPath);
+        const { hasLogic, logicTypes } = extractLogicTypes(metadata?.component);
+        const conditionalLogicTypes = Array.isArray(node.conditionalLogicTypes)
+            ? node.conditionalLogicTypes
+            : [];
+        const combinedLogicTypes = Array.from(
+            new Set([...logicTypes, ...conditionalLogicTypes]),
+        ).sort((left, right) => left.localeCompare(right));
+        const hasAnyLogic = hasLogic || combinedLogicTypes.length > 0;
 
         const directErrors = maps.errorCounts.get(node.id) ?? 0;
         const directIncoming = maps.incomingCounts.get(node.id) ?? 0;
@@ -228,6 +304,8 @@ const enrichTreeWithAnalysis = (nodes, maps, metadataByPath) => {
             children,
             dataPath,
             affectsDataPath,
+            hasLogic: hasAnyLogic,
+            logicTypes: combinedLogicTypes,
             analysis: {
                 directErrors,
                 directIncoming,

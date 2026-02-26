@@ -61,6 +61,10 @@
     overflow: hidden;
 }
 
+.panel-analysis {
+    overflow: visible;
+}
+
 .panel::after {
     content: "";
     position: absolute;
@@ -401,8 +405,12 @@
 
 .component-tree-detail {
     display: grid;
+    align-self: start;
     align-content: start;
     gap: 10px;
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
 }
 
 .component-tree-detail h4,
@@ -756,5 +764,11 @@
 
     .component-tree-content {
         grid-template-columns: 1fr;
+    }
+
+    .component-tree-detail {
+        position: static;
+        top: auto;
+        max-height: none;
     }
 }
