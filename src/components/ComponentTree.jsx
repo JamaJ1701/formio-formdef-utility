@@ -1,4 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+
+const FORMIO_LAYOUT_COMPONENT_TYPES = new Set([
+    "columns",
+    "content",
+    "fieldset",
+    "htmlelement",
+    "panel",
+    "table",
+    "tabs",
+    "well",
+    "keyline",
+]);
+
+const isLayoutComponentType = (type) => FORMIO_LAYOUT_COMPONENT_TYPES.has(type);
 
 const buildInitialCollapsedSet = (nodes, depth = 0, collapsed = new Set()) => {
     nodes.forEach((node) => {
@@ -12,20 +26,28 @@ const buildInitialCollapsedSet = (nodes, depth = 0, collapsed = new Set()) => {
     return collapsed;
 };
 
-const filterTreeNodes = (nodes, selectedType, hideLayoutOnly) => {
+const filterTreeNodes = (nodes, selectedType, hideLayoutOnly, depth = 0) => {
     return nodes.reduce((accumulator, node) => {
         const children = filterTreeNodes(
             node.children ?? [],
             selectedType,
             hideLayoutOnly,
+            depth + 1,
         );
 
         const matchesType =
             selectedType === "all" || node.type === selectedType;
-        const matchesLayout = !hideLayoutOnly || node.affectsDataPath;
+        const isRootPanel = depth === 0 && node.type === "panel";
+        const matchesLayout =
+            !hideLayoutOnly || !isLayoutComponentType(node.type) || isRootPanel;
         const matchesSelf = matchesType && matchesLayout;
 
         if (!matchesSelf && !children.length) {
+            return accumulator;
+        }
+
+        if (!matchesSelf && children.length) {
+            accumulator.push(...children);
             return accumulator;
         }
 
@@ -115,7 +137,7 @@ const TreeNode = ({
                                 links: {node.analysis.totalConnections}
                             </span>
                         ) : null}
-                        {!node.affectsDataPath ? (
+                        {isLayoutComponentType(node.type) ? (
                             <span className="meta">layout-only</span>
                         ) : null}
                     </span>
@@ -144,15 +166,8 @@ const TreeNode = ({
 const ComponentTree = ({ nodes, errors, componentTypes }) => {
     const [selectedType, setSelectedType] = useState("all");
     const [hideLayoutOnly, setHideLayoutOnly] = useState(false);
-    const [selectedNodeId, setSelectedNodeId] = useState("");
-    const [collapsedIds, setCollapsedIds] = useState(() => new Set());
-
-    useEffect(() => {
-        setCollapsedIds(buildInitialCollapsedSet(nodes));
-
-        const firstNode = nodes[0];
-        setSelectedNodeId(firstNode?.id ?? "");
-    }, [nodes]);
+    const [selectedNodeIdOverride, setSelectedNodeIdOverride] = useState("");
+    const [collapsedToggles, setCollapsedToggles] = useState(() => new Set());
 
     const filteredNodes = useMemo(
         () => filterTreeNodes(nodes, selectedType, hideLayoutOnly),
@@ -164,13 +179,33 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
         [filteredNodes],
     );
 
-    useEffect(() => {
-        if (!selectedNodeId || visibleNodeIds.has(selectedNodeId)) {
-            return;
+    const selectedNodeId = useMemo(() => {
+        const fallbackNodeId = filteredNodes[0]?.id ?? "";
+
+        if (!selectedNodeIdOverride) {
+            return fallbackNodeId;
         }
 
-        setSelectedNodeId(filteredNodes[0]?.id ?? "");
-    }, [selectedNodeId, visibleNodeIds, filteredNodes]);
+        if (visibleNodeIds.has(selectedNodeIdOverride)) {
+            return selectedNodeIdOverride;
+        }
+
+        return fallbackNodeId;
+    }, [selectedNodeIdOverride, visibleNodeIds, filteredNodes]);
+
+    const collapsedIds = useMemo(() => {
+        const next = buildInitialCollapsedSet(nodes);
+
+        collapsedToggles.forEach((nodeId) => {
+            if (next.has(nodeId)) {
+                next.delete(nodeId);
+            } else {
+                next.add(nodeId);
+            }
+        });
+
+        return next;
+    }, [nodes, collapsedToggles]);
 
     const selectedNode = useMemo(
         () => findNodeById(filteredNodes, selectedNodeId),
@@ -199,11 +234,11 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
     }, [errors]);
 
     const selectedErrors = selectedNode
-        ? directErrorsByPath.get(selectedNode.id) ?? []
+        ? (directErrorsByPath.get(selectedNode.id) ?? [])
         : [];
 
     const handleToggleNode = (nodeId) => {
-        setCollapsedIds((previous) => {
+        setCollapsedToggles((previous) => {
             const next = new Set(previous);
             if (next.has(nodeId)) {
                 next.delete(nodeId);
@@ -217,7 +252,9 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
 
     if (!nodes.length) {
         return (
-            <p className="empty-state">Run analysis to see the component tree.</p>
+            <p className="empty-state">
+                Run analysis to see the component tree.
+            </p>
         );
     }
 
@@ -228,7 +265,9 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                     <span>Component type</span>
                     <select
                         value={selectedType}
-                        onChange={(event) => setSelectedType(event.target.value)}
+                        onChange={(event) =>
+                            setSelectedType(event.target.value)
+                        }
                     >
                         <option value="all">All types</option>
                         {(componentTypes ?? []).map((type) => (
@@ -263,7 +302,7 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                                     collapsedIds={collapsedIds}
                                     onToggle={handleToggleNode}
                                     selectedNodeId={selectedNodeId}
-                                    onSelect={setSelectedNodeId}
+                                    onSelect={setSelectedNodeIdOverride}
                                 />
                             ))}
                         </ul>
@@ -279,13 +318,20 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                         <>
                             <h4>{selectedNode.label}</h4>
                             <div className="component-tree-detail-meta">
-                                <span className="badge">{selectedNode.type}</span>
+                                <span className="badge">
+                                    {selectedNode.type}
+                                </span>
                                 {selectedNode.key ? (
-                                    <span className="meta">key: {selectedNode.key}</span>
+                                    <span className="meta">
+                                        key: {selectedNode.key}
+                                    </span>
                                 ) : null}
-                                <span className="meta">schema path: {selectedNode.id}</span>
                                 <span className="meta">
-                                    data path: {selectedNode.dataPath || "not mapped"}
+                                    schema path: {selectedNode.id}
+                                </span>
+                                <span className="meta">
+                                    data path:{" "}
+                                    {selectedNode.dataPath || "not mapped"}
                                 </span>
                                 {selectedNode.hasCustomConditional ? (
                                     <span className="badge conditional-tag">
@@ -295,13 +341,18 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                             </div>
                             <div className="component-tree-detail-stats">
                                 <span className="badge issue-tag">
-                                    total errors: {selectedNode.analysis?.totalErrors ?? 0}
+                                    total errors:{" "}
+                                    {selectedNode.analysis?.totalErrors ?? 0}
                                 </span>
                                 <span className="badge connection-tag">
-                                    total links: {selectedNode.analysis?.totalConnections ?? 0}
+                                    total links:{" "}
+                                    {selectedNode.analysis?.totalConnections ??
+                                        0}
                                 </span>
                                 <span className="badge unresolved-tag">
-                                    unresolved out: {selectedNode.analysis?.totalUnresolvedOutgoing ?? 0}
+                                    unresolved out:{" "}
+                                    {selectedNode.analysis
+                                        ?.totalUnresolvedOutgoing ?? 0}
                                 </span>
                             </div>
                             <div className="component-tree-detail-errors">
@@ -309,13 +360,17 @@ const ComponentTree = ({ nodes, errors, componentTypes }) => {
                                 {selectedErrors.length ? (
                                     <ul>
                                         {selectedErrors.map((error, index) => (
-                                            <li key={`${selectedNode.id}-${index}`}>
+                                            <li
+                                                key={`${selectedNode.id}-${index}`}
+                                            >
                                                 {error.message}
                                             </li>
                                         ))}
                                     </ul>
                                 ) : (
-                                    <p className="empty-state">No direct errors.</p>
+                                    <p className="empty-state">
+                                        No direct errors.
+                                    </p>
                                 )}
                             </div>
                         </>

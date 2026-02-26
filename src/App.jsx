@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./App.css";
 import ComponentTree from "./components/ComponentTree";
+import TreeDiagram from "./components/TreeDiagram";
 import Connections from "./components/Connections";
 import sampleJson from "./data/sampleJson";
 import { analyzeDefinition } from "./utils/analyzeDefinition";
@@ -172,8 +173,21 @@ export default function App() {
                                 onClick={() => setIsDiagramFullscreen(true)}
                                 disabled={!analysis?.tree?.length}
                             >
-                                View component tree
+                                View component diagram
                             </button>
+                        </div>
+
+                        <div className="tree-wrap">
+                            <div className="section-head">
+                                <h3>Component tree</h3>
+                            </div>
+                            <ComponentTree
+                                nodes={analysis?.tree ?? []}
+                                errors={analysis?.errors ?? []}
+                                componentTypes={
+                                    analysis?.stats?.componentTypes ?? []
+                                }
+                            />
                         </div>
 
                         <div className="errors">
@@ -336,10 +350,10 @@ export default function App() {
                           className="diagram-fullscreen"
                           role="dialog"
                           aria-modal="true"
-                          aria-label="Component tree"
+                          aria-label="Component diagram"
                       >
                           <div className="diagram-fullscreen-header">
-                              <h3>Component tree</h3>
+                              <h3>Component diagram</h3>
                               <button
                                   className="btn"
                                   type="button"
@@ -349,12 +363,9 @@ export default function App() {
                               </button>
                           </div>
 
-                          <ComponentTree
+                          <TreeDiagram
                               nodes={analysis?.tree ?? []}
-                              errors={analysis?.errors ?? []}
-                              componentTypes={
-                                  analysis?.stats?.componentTypes ?? []
-                              }
+                              connections={analysis?.connections ?? []}
                           />
                       </div>,
                       document.body,
