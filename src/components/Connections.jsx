@@ -20,22 +20,6 @@ const ConnectionItem = ({ connection }) => {
                     rule field (schema path): {connection.context}
                 </span>
             </div>
-            <div className="locator-meta">
-                <span className="meta">
-                    source: type {connection.sourceType}, schema{" "}
-                    {connection.sourceSchemaPath}
-                    {connection.sourceDataPath
-                        ? `, data ${connection.sourceDataPath}`
-                        : ""}
-                </span>
-                <span className="meta">
-                    target: type {connection.targetType}, schema{" "}
-                    {connection.targetSchemaPath}
-                    {connection.targetDataPath
-                        ? `, data ${connection.targetDataPath}`
-                        : ""}
-                </span>
-            </div>
         </li>
     );
 };
@@ -53,7 +37,11 @@ const groupByType = (connections) => {
 
 const Connections = ({ connections }) => {
     if (!connections.length) {
-        return <p className="empty-state">No connections found.</p>;
+        return (
+            <p className="empty-state">
+                Run analysis to see detected component connections.
+            </p>
+        );
     }
 
     const grouped = groupByType(connections);

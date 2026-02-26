@@ -50,6 +50,19 @@ const buildChildDataPath = (component, parentDataPath, componentDataPath) => {
     return parentDataPath;
 };
 
+const buildSchemaPathDisplay = (schemaPath, component) => {
+    const key =
+        typeof component?.key === "string" && component.key.trim()
+            ? component.key.trim()
+            : "";
+
+    if (key) {
+        return `${schemaPath}{key:${key}}`;
+    }
+
+    return schemaPath;
+};
+
 export const traverseComponents = (
     components,
     basePath,
@@ -70,9 +83,14 @@ export const traverseComponents = (
             component,
             parentDataPath,
         );
+        const componentSchemaPathDisplay = buildSchemaPathDisplay(
+            componentPath,
+            component,
+        );
 
         visit(component, componentPath, {
             schemaPath: componentPath,
+            schemaPathDisplay: componentSchemaPathDisplay,
             dataPath: componentDataPath,
             parentDataPath,
         });
@@ -159,6 +177,7 @@ export const indexComponentMetadataByPath = (components) => {
             indexed[path] = {
                 component,
                 schemaPath: metadata.schemaPath,
+                schemaPathDisplay: metadata.schemaPathDisplay,
                 dataPath: metadata.dataPath,
                 parentDataPath: metadata.parentDataPath,
             };

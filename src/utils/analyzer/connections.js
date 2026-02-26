@@ -118,6 +118,7 @@ const buildComponentCatalog = (flattened, metadataByPath = {}) => {
             label: normalizeLabel(component),
             type: component?.type ?? "unknown",
             schemaPath: metadata.schemaPath ?? path,
+            schemaPathDisplay: metadata.schemaPathDisplay ?? path,
             dataPath: metadata.dataPath ?? "",
         };
 
@@ -144,6 +145,19 @@ export const detectConnections = (flattened, metadataByPath = {}) => {
     const unresolved = [];
     const dedupe = new Set();
 
+    const toDisplayContext = (sourcePath, context, sourceSchemaPathDisplay) => {
+        if (
+            typeof context === "string" &&
+            typeof sourcePath === "string" &&
+            typeof sourceSchemaPathDisplay === "string" &&
+            context.startsWith(sourcePath)
+        ) {
+            return `${sourceSchemaPathDisplay}${context.slice(sourcePath.length)}`;
+        }
+
+        return context;
+    };
+
     const addReference = (sourcePath, targetKey, type, context) => {
         if (!targetKey) return;
 
@@ -157,6 +171,10 @@ export const detectConnections = (flattened, metadataByPath = {}) => {
                 unresolved.push({
                     sourcePath,
                     sourceSchemaPath: source?.schemaPath ?? sourcePath,
+                    sourceSchemaPathDisplay:
+                        source?.schemaPathDisplay ??
+                        source?.schemaPath ??
+                        sourcePath,
                     sourceDataPath: source?.dataPath ?? "",
                     sourceKey: source?.key ?? "",
                     sourceLabel: source?.label ?? sourcePath,
@@ -164,6 +182,13 @@ export const detectConnections = (flattened, metadataByPath = {}) => {
                     targetKey,
                     connectionType: type,
                     context,
+                    contextDisplay: toDisplayContext(
+                        sourcePath,
+                        context,
+                        source?.schemaPathDisplay ??
+                            source?.schemaPath ??
+                            sourcePath,
+                    ),
                 });
             }
             return;
@@ -180,18 +205,33 @@ export const detectConnections = (flattened, metadataByPath = {}) => {
                 id,
                 sourcePath,
                 sourceSchemaPath: source?.schemaPath ?? sourcePath,
+                sourceSchemaPathDisplay:
+                    source?.schemaPathDisplay ??
+                    source?.schemaPath ??
+                    sourcePath,
                 sourceDataPath: source?.dataPath ?? "",
                 sourceKey: source?.key ?? "",
                 sourceLabel: source?.label ?? sourcePath,
                 sourceType: source?.type ?? "unknown",
                 targetPath,
                 targetSchemaPath: target?.schemaPath ?? targetPath,
+                targetSchemaPathDisplay:
+                    target?.schemaPathDisplay ??
+                    target?.schemaPath ??
+                    targetPath,
                 targetDataPath: target?.dataPath ?? "",
                 targetKey,
                 targetLabel: target?.label ?? targetPath,
                 targetType: target?.type ?? "unknown",
                 connectionType: type,
                 context,
+                contextDisplay: toDisplayContext(
+                    sourcePath,
+                    context,
+                    source?.schemaPathDisplay ??
+                        source?.schemaPath ??
+                        sourcePath,
+                ),
             });
         });
     };

@@ -61,6 +61,7 @@ const buildLocatorFromMetadata = (metadata) => {
         key: component.key || "",
         type: component.type || "unknown",
         schemaPath: metadata.schemaPath || "",
+        schemaPathDisplay: metadata.schemaPathDisplay || metadata.schemaPath || "",
         dataPath: metadata.dataPath || "",
     };
 };
