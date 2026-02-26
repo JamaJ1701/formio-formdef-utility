@@ -45,7 +45,7 @@
 .grid {
     display: grid;
     gap: 24px;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: 1fr;
 }
 
 .panel {
@@ -139,6 +139,17 @@
     z-index: 1;
 }
 
+.collapsed-message {
+    margin: 0;
+    border-radius: 12px;
+    border: 1px solid rgba(20, 26, 40, 0.12);
+    background: rgba(255, 255, 255, 0.8);
+    color: var(--ink-600);
+    padding: 12px 14px;
+    font-size: 0.92rem;
+    z-index: 1;
+}
+
 .panel-body {
     display: grid;
     gap: 20px;
@@ -146,7 +157,8 @@
 }
 
 .errors h3,
-.tree-wrap h3 {
+.tree-wrap h3,
+.connections h3 {
     margin: 0 0 10px;
     font-size: 1rem;
     text-transform: uppercase;
@@ -232,6 +244,69 @@
 .meta {
     font-size: 0.82rem;
     color: var(--ink-500);
+}
+
+.connections-wrap {
+    display: grid;
+    gap: 12px;
+}
+
+.connection-group h4 {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    text-transform: lowercase;
+    color: var(--ink-700);
+}
+
+.connection-group ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.connection-item,
+.unresolved-item {
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(20, 26, 40, 0.1);
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.unresolved-item {
+    background: rgba(246, 86, 86, 0.06);
+    border-color: rgba(246, 86, 86, 0.2);
+}
+
+.connection-route {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    color: var(--ink-800);
+    font-weight: 600;
+}
+
+.connection-node {
+    background: rgba(20, 26, 40, 0.06);
+    border-radius: 999px;
+    padding: 4px 10px;
+}
+
+.connection-arrow {
+    color: var(--ink-500);
+}
+
+.connection-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.connections .badge {
+    background: rgba(56, 123, 110, 0.12);
 }
 
 .stats {

@@ -1,154 +1,7 @@
-const normalizeLabel = (component) => {
-    if (component.label) return component.label;
-    if (component.key) return component.key;
-    if (component.type) return component.type;
-    return "Component";
-};
-
-const collectChildSets = (component, nodePath, errors) => {
-    const sets = [];
-
-    if (Object.prototype.hasOwnProperty.call(component, "components")) {
-        if (Array.isArray(component.components)) {
-            sets.push({
-                label: "components",
-                components: component.components,
-            });
-        } else if (component.components !== undefined) {
-            errors.push({
-                path: `${nodePath}.components`,
-                message: "Expected components to be an array.",
-            });
-        }
-    }
-
-    if (Object.prototype.hasOwnProperty.call(component, "columns")) {
-        if (Array.isArray(component.columns)) {
-            component.columns.forEach((column, index) => {
-                if (Array.isArray(column?.components)) {
-                    sets.push({
-                        label: `columns[${index}]`,
-                        components: column.components,
-                    });
-                } else if (column?.components !== undefined) {
-                    errors.push({
-                        path: `${nodePath}.columns[${index}].components`,
-                        message: "Expected column components to be an array.",
-                    });
-                }
-            });
-        } else if (component.columns !== undefined) {
-            errors.push({
-                path: `${nodePath}.columns`,
-                message: "Expected columns to be an array.",
-            });
-        }
-    }
-
-    if (Object.prototype.hasOwnProperty.call(component, "rows")) {
-        if (Array.isArray(component.rows)) {
-            component.rows.forEach((row, rowIndex) => {
-                if (Array.isArray(row)) {
-                    row.forEach((column, columnIndex) => {
-                        if (Array.isArray(column?.components)) {
-                            sets.push({
-                                label: `rows[${rowIndex}][${columnIndex}]`,
-                                components: column.components,
-                            });
-                        } else if (column?.components !== undefined) {
-                            errors.push({
-                                path: `${nodePath}.rows[${rowIndex}][${columnIndex}].components`,
-                                message:
-                                    "Expected row column components to be an array.",
-                            });
-                        }
-                    });
-                } else if (row !== undefined) {
-                    errors.push({
-                        path: `${nodePath}.rows[${rowIndex}]`,
-                        message: "Expected rows to contain column arrays.",
-                    });
-                }
-            });
-        } else if (component.rows !== undefined) {
-            errors.push({
-                path: `${nodePath}.rows`,
-                message: "Expected rows to be an array.",
-            });
-        }
-    }
-
-    if (Object.prototype.hasOwnProperty.call(component, "tabs")) {
-        if (Array.isArray(component.tabs)) {
-            component.tabs.forEach((tab, index) => {
-                if (Array.isArray(tab?.components)) {
-                    sets.push({
-                        label: `tabs[${index}]`,
-                        components: tab.components,
-                    });
-                } else if (tab?.components !== undefined) {
-                    errors.push({
-                        path: `${nodePath}.tabs[${index}].components`,
-                        message: "Expected tab components to be an array.",
-                    });
-                }
-            });
-        } else if (component.tabs !== undefined) {
-            errors.push({
-                path: `${nodePath}.tabs`,
-                message: "Expected tabs to be an array.",
-            });
-        }
-    }
-
-    return sets;
-};
-
-const buildTree = (components, basePath, errors) => {
-    let count = 0;
-    const nodes = components.map((component, index) => {
-        const nodePath = `${basePath}[${index}]`;
-        count += 1;
-
-        if (!component?.type) {
-            errors.push({ path: nodePath, message: "Missing component type." });
-        }
-        if (component?.input && !component?.key) {
-            errors.push({
-                path: nodePath,
-                message: "Input component is missing a key.",
-            });
-        }
-        if (!component?.label && !component?.key) {
-            errors.push({
-                path: nodePath,
-                message: "Component needs a label or key for clarity.",
-            });
-        }
-
-        const childSets = collectChildSets(component ?? {}, nodePath, errors);
-        const childNodes = [];
-        childSets.forEach((set) => {
-            const childResult = buildTree(
-                set.components,
-                `${nodePath}.${set.label}`,
-                errors,
-            );
-            count += childResult.count;
-            childNodes.push(...childResult.nodes);
-        });
-
-        return {
-            id: nodePath,
-            label: normalizeLabel(component ?? {}),
-            type: component?.type ?? "unknown",
-            key: component?.key ?? "",
-            children: childNodes,
-        };
-    });
-
-    return { nodes, count };
-};
+import { detectConnections } from "./analyzer/connections";
+import { buildTreeFromSchema } from "./analyzer/tree";
+import { indexComponentsByPath } from "./analyzer/traverse";
+import { validateComponent } from "./analyzer/validation";
 
 export const analyzeDefinition = (raw) => {
     const errors = [];
@@ -162,6 +15,8 @@ export const analyzeDefinition = (raw) => {
                 },
             ],
             tree: [],
+            connections: [],
+            unresolvedConnections: [],
             stats: null,
         };
     }
@@ -175,6 +30,8 @@ export const analyzeDefinition = (raw) => {
                 { path: "root", message: `Invalid JSON: ${error.message}` },
             ],
             tree: [],
+            connections: [],
+            unresolvedConnections: [],
             stats: null,
         };
     }
@@ -185,6 +42,8 @@ export const analyzeDefinition = (raw) => {
                 { path: "root", message: "Form definition must be an object." },
             ],
             tree: [],
+            connections: [],
+            unresolvedConnections: [],
             stats: null,
         };
     }
@@ -199,7 +58,6 @@ export const analyzeDefinition = (raw) => {
     const components = Array.isArray(parsed.components)
         ? parsed.components
         : [];
-    const treeResult = buildTree(components, "components", errors);
 
     if (components.length === 0) {
         errors.push({
@@ -208,12 +66,69 @@ export const analyzeDefinition = (raw) => {
         });
     }
 
-    return {
-        errors,
-        tree: treeResult.nodes,
-        stats: {
-            total: treeResult.count,
-            display: parsed.display || "unknown",
-        },
-    };
+    let componentCount = 0;
+    const duplicateKeys = new Map();
+
+    try {
+        const indexed = indexComponentsByPath(components);
+        componentCount = Object.keys(indexed).length;
+
+        Object.entries(indexed).forEach(([path, component]) => {
+            validateComponent(component, path, errors);
+
+            if (component.key) {
+                if (duplicateKeys.has(component.key)) {
+                    duplicateKeys.get(component.key).push(path);
+                } else {
+                    duplicateKeys.set(component.key, [path]);
+                }
+            }
+        });
+
+        // Report duplicate keys
+        duplicateKeys.forEach((paths, key) => {
+            if (paths.length > 1) {
+                errors.push({
+                    path: paths.join(", "),
+                    message: `Duplicate key "${key}" found in ${paths.length} components.`,
+                });
+            }
+        });
+
+        const tree = buildTreeFromSchema(components);
+        const connectionsAnalysis = detectConnections(indexed);
+
+        return {
+            errors,
+            tree,
+            connections: connectionsAnalysis.connections,
+            unresolvedConnections: connectionsAnalysis.unresolved,
+            stats: {
+                total: componentCount,
+                display: parsed.display || "unknown",
+                totalConnections: connectionsAnalysis.stats.totalConnections,
+                connectionTypes: connectionsAnalysis.stats.uniqueTypes,
+                connectionTypeCounts: connectionsAnalysis.stats.typeCounts,
+            },
+        };
+    } catch (error) {
+        errors.push({
+            path: "analysis",
+            message: `Error during analysis: ${error.message}`,
+        });
+
+        return {
+            errors,
+            tree: [],
+            connections: [],
+            unresolvedConnections: [],
+            stats: {
+                total: componentCount,
+                display: parsed.display || "unknown",
+                totalConnections: 0,
+                connectionTypes: 0,
+                connectionTypeCounts: {},
+            },
+        };
+    }
 };

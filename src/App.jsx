@@ -1,12 +1,16 @@
 import { useState } from "react";
 import "./App.css";
 import Tree from "./components/Tree";
+import Connections from "./components/Connections";
 import sampleJson from "./data/sampleJson";
 import { analyzeDefinition } from "./utils/analyzeDefinition";
 
 function App() {
     const [formJson, setFormJson] = useState("");
     const [analysis, setAnalysis] = useState(null);
+    const [isFormCollapsed, setIsFormCollapsed] = useState(false);
+
+    const hasFormJson = formJson.trim().length > 0;
 
     const handleAnalyze = () => {
         setAnalysis(analyzeDefinition(formJson));
@@ -15,6 +19,7 @@ function App() {
     const handleClear = () => {
         setFormJson("");
         setAnalysis(null);
+        setIsFormCollapsed(false);
     };
 
     return (
@@ -52,15 +57,37 @@ function App() {
                             >
                                 Analyze
                             </button>
+                            {hasFormJson ? (
+                                <button
+                                    className="btn"
+                                    type="button"
+                                    onClick={() =>
+                                        setIsFormCollapsed((value) => !value)
+                                    }
+                                    aria-expanded={!isFormCollapsed}
+                                    aria-controls="form-definition-input"
+                                >
+                                    {isFormCollapsed ? "Expand" : "Collapse"}
+                                </button>
+                            ) : null}
                         </div>
                     </div>
-                    <textarea
-                        className="json-input"
-                        value={formJson}
-                        onChange={(event) => setFormJson(event.target.value)}
-                        placeholder={sampleJson}
-                        spellCheck={false}
-                    />
+                    {isFormCollapsed ? (
+                        <p className="collapsed-message">
+                            Form definition entered. Expand to edit.
+                        </p>
+                    ) : (
+                        <textarea
+                            id="form-definition-input"
+                            className="json-input"
+                            value={formJson}
+                            onChange={(event) =>
+                                setFormJson(event.target.value)
+                            }
+                            placeholder={sampleJson}
+                            spellCheck={false}
+                        />
+                    )}
                 </section>
 
                 <section className="panel">
@@ -78,6 +105,14 @@ function App() {
                                 </span>
                                 <span className="stat">
                                     display: {analysis.stats.display}
+                                </span>
+                                <span className="stat">
+                                    connections:{" "}
+                                    {analysis.stats.totalConnections ?? 0}
+                                </span>
+                                <span className="stat">
+                                    connection types:{" "}
+                                    {analysis.stats.connectionTypes ?? 0}
                                 </span>
                             </div>
                         ) : null}
@@ -112,6 +147,16 @@ function App() {
                         <div className="tree-wrap">
                             <h3>Component tree</h3>
                             <Tree nodes={analysis?.tree ?? []} />
+                        </div>
+
+                        <div className="connections">
+                            <h3>Connections</h3>
+                            <Connections
+                                connections={analysis?.connections ?? []}
+                                unresolvedConnections={
+                                    analysis?.unresolvedConnections ?? []
+                                }
+                            />
                         </div>
                     </div>
                 </section>
