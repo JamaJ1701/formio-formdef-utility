@@ -29,6 +29,19 @@ const extractConditionalLogicTypes = (component) => {
     return logicTypes;
 };
 
+const resolveTreeLabel = (component, basePath) => {
+    const isRootLevel = basePath === "components";
+    const isPanel = component?.type === "panel";
+    const hasTitle =
+        typeof component?.title === "string" && component.title.trim().length;
+
+    if (isRootLevel && isPanel && hasTitle) {
+        return component.title.trim();
+    }
+
+    return normalizeLabel(component);
+};
+
 const collectChildren = (component, basePath) => {
     const children = [];
 
@@ -105,7 +118,7 @@ export const buildTreeFromSchema = (components, basePath = "components") => {
 
         tree.push({
             id: path,
-            label: normalizeLabel(component),
+            label: resolveTreeLabel(component, basePath),
             type: component?.type ?? "unknown",
             key: component?.key ?? "",
             hasCustomConditional: hasCustomConditional(component),

@@ -59,7 +59,8 @@ const appendReferenceMatches = (
         return;
     }
 
-    const dataPathRegex = /\b(?:data|row)\s*(?:\.\s*[A-Za-z_$][\w$]*|\[\s*["'][^"']+["']\s*\])/g;
+    const dataPathRegex =
+        /\b(?:data|row)\s*(?:\.\s*[A-Za-z_$][\w$]*|\[\s*["'][^"']+["']\s*\])/g;
     const dataMatches = text.match(dataPathRegex) ?? [];
 
     dataMatches.forEach((match) => {
@@ -69,7 +70,10 @@ const appendReferenceMatches = (
     });
 
     componentKeys.forEach((componentKey) => {
-        const keyRegex = new RegExp(`\\b${componentKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g");
+        const keyRegex = new RegExp(
+            `\\b${componentKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+            "g",
+        );
         if (keyRegex.test(text)) {
             references.add(`component:${componentKey}`);
             highlightTokens.add(componentKey);
@@ -187,7 +191,9 @@ const extractConfiguredLogicDetails = (component, componentKeys = []) => {
         const highlightTokens = new Set();
 
         const when =
-            typeof conditional?.when === "string" ? conditional.when.trim() : "";
+            typeof conditional?.when === "string"
+                ? conditional.when.trim()
+                : "";
         if (when) {
             references.add(`component:${when}`);
             highlightTokens.add(when);

@@ -411,6 +411,52 @@
     position: sticky;
     top: 12px;
     max-height: calc(100vh - 24px);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.component-tree-detail-header {
+    display: grid;
+    gap: 10px;
+}
+
+.component-tree-detail-title {
+    display: grid;
+    gap: 6px;
+}
+
+.component-tree-detail-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.component-tree-detail-kv {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.component-tree-detail-kv-row {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+}
+
+.component-tree-detail-kv dt {
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-500);
+}
+
+.component-tree-detail-kv dd {
+    margin: 0;
+    font-size: 0.84rem;
+    color: var(--ink-800);
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .component-tree-detail h4,
@@ -431,6 +477,44 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.component-tree-detail-section {
+    display: grid;
+    gap: 8px;
+}
+
+.component-tree-detail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.component-tree-detail-list li {
+    display: grid;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(20, 26, 40, 0.1);
+    background: rgba(255, 255, 255, 0.75);
+    color: var(--ink-800);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.detail-list-title {
+    font-weight: 600;
+    color: var(--ink-900);
+}
+
+.detail-list-meta,
+.detail-list-context {
+    font-size: 0.78rem;
+    color: var(--ink-600);
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .component-tree-detail-errors ul {
@@ -559,6 +643,21 @@
     padding: 4px 10px;
     font-size: 0.78rem;
     font-weight: 600;
+}
+
+.badge.type-tag {
+    background: rgba(52, 120, 246, 0.16);
+    color: rgba(34, 74, 160, 0.95);
+}
+
+.badge.key-tag {
+    background: rgba(242, 166, 68, 0.2);
+    color: rgba(156, 88, 12, 0.95);
+}
+
+.badge.layout-tag {
+    background: rgba(111, 120, 138, 0.16);
+    color: rgba(62, 68, 82, 0.95);
 }
 
 .badge.conditional-tag {
