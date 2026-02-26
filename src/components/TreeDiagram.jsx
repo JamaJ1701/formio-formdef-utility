@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { ReactFlow, Background, Controls, MarkerType } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -14,6 +14,7 @@ const FRAME_PADDING_RIGHT = 16;
 const FRAME_PADDING_Y = 20;
 const FRAME_HEADER_HEIGHT = 64;
 const FRAME_DETAIL_LINE_HEIGHT = 18;
+const BADGE_GAP = 8;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -41,7 +42,88 @@ const formatTopTypeCounts = (counts, limit = 2) => {
     return sorted;
 };
 
-const TreeDiagramNode = ({ data }) => {
+const getVisibleMetaLabels = (node, isPerformanceMode) => {
+    const labels = [node.type ?? "unknown"];
+
+    if (node.key) {
+        labels.push(`key: ${node.key}`);
+    }
+
+    if (node.hasCustomConditional) {
+        labels.push("custom conditional");
+    }
+
+    if ((node.analysis?.totalErrors ?? 0) > 0) {
+        labels.push(`errors: ${node.analysis.totalErrors}`);
+    }
+
+    if ((node.analysis?.totalConnections ?? 0) > 0) {
+        labels.push(`links: ${node.analysis.totalConnections}`);
+    }
+
+    if (
+        !isPerformanceMode &&
+        (node.analysis?.directIncoming ?? 0) +
+            (node.analysis?.directOutgoing ?? 0) >
+            0
+    ) {
+        labels.push(
+            `in/out: ${node.analysis.directIncoming}/${node.analysis.directOutgoing}`,
+        );
+    }
+
+    if ((node.analysis?.totalUnresolvedOutgoing ?? 0) > 0) {
+        labels.push(`unresolved: ${node.analysis.totalUnresolvedOutgoing}`);
+    }
+
+    if ((node.analysis?.directErrors ?? 0) > 0) {
+        labels.push(`direct errors: ${node.analysis.directErrors}`);
+    }
+
+    return labels;
+};
+
+const estimateTextLines = (text, availableWidth, charWidth = 7.2) => {
+    const content = String(text ?? "");
+    if (!content) {
+        return 1;
+    }
+
+    const safeWidth = Math.max(availableWidth, 80);
+    const estimatedWidth = content.length * charWidth;
+    return Math.max(1, Math.ceil(estimatedWidth / safeWidth));
+};
+
+const estimateMetaRows = (labels, availableWidth) => {
+    if (!labels.length) {
+        return 0;
+    }
+
+    const safeWidth = Math.max(availableWidth, 120);
+    let rows = 1;
+    let rowWidth = 0;
+
+    labels.forEach((label, index) => {
+        const itemWidth = estimateWidthFromText(label);
+        const gap = rowWidth > 0 ? BADGE_GAP : 0;
+
+        if (rowWidth + gap + itemWidth <= safeWidth) {
+            rowWidth += gap + itemWidth;
+        } else {
+            rows += 1;
+            rowWidth = itemWidth;
+        }
+
+        if (index === labels.length - 1 && rowWidth === 0) {
+            rowWidth = itemWidth;
+        }
+    });
+
+    return rows;
+};
+
+const TreeDiagramNode = memo(({ data }) => {
+    const isPerformanceMode = data.isPerformanceMode;
     const directIncoming = data.analysis?.directIncoming ?? 0;
     const directOutgoing = data.analysis?.directOutgoing ?? 0;
     const directErrors = data.analysis?.directErrors ?? 0;
@@ -78,7 +160,7 @@ const TreeDiagramNode = ({ data }) => {
                         links: {totalConnections}
                     </span>
                 ) : null}
-                {directIncoming + directOutgoing > 0 ? (
+                {directIncoming + directOutgoing > 0 && !isPerformanceMode ? (
                     <span className="badge connection-tag">
                         in/out: {directIncoming}/{directOutgoing}
                     </span>
@@ -94,21 +176,22 @@ const TreeDiagramNode = ({ data }) => {
                     </span>
                 ) : null}
             </span>
-            {incomingTypeSummary ? (
+            {incomingTypeSummary && !isPerformanceMode ? (
                 <span className="diagram-analysis-detail">
                     incoming types: {incomingTypeSummary}
                 </span>
             ) : null}
-            {outgoingTypeSummary ? (
+            {outgoingTypeSummary && !isPerformanceMode ? (
                 <span className="diagram-analysis-detail">
                     outgoing types: {outgoingTypeSummary}
                 </span>
             ) : null}
         </div>
     );
-};
+});
 
-const PageFrameNode = ({ data }) => {
+const PageFrameNode = memo(({ data }) => {
+    const isPerformanceMode = data.isPerformanceMode;
     const directIncoming = data.analysis?.directIncoming ?? 0;
     const directOutgoing = data.analysis?.directOutgoing ?? 0;
     const directErrors = data.analysis?.directErrors ?? 0;
@@ -145,7 +228,7 @@ const PageFrameNode = ({ data }) => {
                         links: {totalConnections}
                     </span>
                 ) : null}
-                {directIncoming + directOutgoing > 0 ? (
+                {directIncoming + directOutgoing > 0 && !isPerformanceMode ? (
                     <span className="badge connection-tag">
                         in/out: {directIncoming}/{directOutgoing}
                     </span>
@@ -161,19 +244,19 @@ const PageFrameNode = ({ data }) => {
                     </span>
                 ) : null}
             </span>
-            {incomingTypeSummary ? (
+            {incomingTypeSummary && !isPerformanceMode ? (
                 <span className="diagram-analysis-detail">
                     incoming types: {incomingTypeSummary}
                 </span>
             ) : null}
-            {outgoingTypeSummary ? (
+            {outgoingTypeSummary && !isPerformanceMode ? (
                 <span className="diagram-analysis-detail">
                     outgoing types: {outgoingTypeSummary}
                 </span>
             ) : null}
         </div>
     );
-};
+});
 
 const nodeTypes = {
     treeNode: TreeDiagramNode,
@@ -183,6 +266,7 @@ const nodeTypes = {
 const buildFlowGraph = (tree, connections = []) => {
     const nodes = [];
     const edges = [];
+    const isPerformanceMode = true;
     const pathToDiagramId = new Map();
     const edgeIds = new Set();
 
@@ -190,6 +274,22 @@ const buildFlowGraph = (tree, connections = []) => {
     const widthCache = new Map();
     const subtreeWidthCache = new Map();
     const frameHeaderHeightCache = new Map();
+
+    const getNodeDetailLineCount = (node) => {
+        if (isPerformanceMode) {
+            return 0;
+        }
+
+        let count = 0;
+        if (formatTopTypeCounts(node.analysis?.totalIncomingTypeCounts)) {
+            count += 1;
+        }
+        if (formatTopTypeCounts(node.analysis?.totalOutgoingTypeCounts)) {
+            count += 1;
+        }
+
+        return count;
+    };
 
     const getNodeWidth = (node) => {
         if (widthCache.has(node.id)) {
@@ -223,21 +323,23 @@ const buildFlowGraph = (tree, connections = []) => {
         const inOutWidth =
             (node.analysis?.directIncoming ?? 0) +
                 (node.analysis?.directOutgoing ?? 0) >
-            0
+                0 && !isPerformanceMode
                 ? estimateWidthFromText(
                       `in/out: ${node.analysis.directIncoming}/${node.analysis.directOutgoing}`,
                   )
                 : 0;
-        const incomingTypesWidth = node.analysis?.totalIncomingTypeCounts
-            ? estimateWidthFromText(
-                  `incoming types: ${formatTopTypeCounts(node.analysis.totalIncomingTypeCounts)}`,
-              )
-            : 0;
-        const outgoingTypesWidth = node.analysis?.totalOutgoingTypeCounts
-            ? estimateWidthFromText(
-                  `outgoing types: ${formatTopTypeCounts(node.analysis.totalOutgoingTypeCounts)}`,
-              )
-            : 0;
+        const incomingTypesWidth =
+            !isPerformanceMode && node.analysis?.totalIncomingTypeCounts
+                ? estimateWidthFromText(
+                      `incoming types: ${formatTopTypeCounts(node.analysis.totalIncomingTypeCounts)}`,
+                  )
+                : 0;
+        const outgoingTypesWidth =
+            !isPerformanceMode && node.analysis?.totalOutgoingTypeCounts
+                ? estimateWidthFromText(
+                      `outgoing types: ${formatTopTypeCounts(node.analysis.totalOutgoingTypeCounts)}`,
+                  )
+                : 0;
 
         const width = clamp(
             Math.max(
@@ -266,6 +368,11 @@ const buildFlowGraph = (tree, connections = []) => {
         }
 
         let height = NODE_HEIGHT;
+        const nodeWidth = getNodeWidth(node);
+        const availableWidth = nodeWidth - 28;
+        const detailLines = getNodeDetailLineCount(node);
+        const metaLabels = getVisibleMetaLabels(node, isPerformanceMode);
+        const metaRows = estimateMetaRows(metaLabels, availableWidth);
 
         if (isContainerNode(node)) {
             const childrenHeight = node.children.reduce(
@@ -284,6 +391,16 @@ const buildFlowGraph = (tree, connections = []) => {
                 headerHeight +
                 FRAME_PADDING_Y * 2 +
                 Math.max(childrenHeight, NODE_HEIGHT);
+        } else {
+            const labelLines = estimateTextLines(node.label, availableWidth);
+            const labelHeight = labelLines * 17;
+            const metaHeight = Math.max(metaRows, 1) * 22;
+            const detailsHeight = detailLines * FRAME_DETAIL_LINE_HEIGHT;
+
+            height = Math.max(
+                NODE_HEIGHT,
+                24 + labelHeight + 8 + metaHeight + detailsHeight,
+            );
         }
 
         heightCache.set(node.id, height);
@@ -319,18 +436,23 @@ const buildFlowGraph = (tree, connections = []) => {
             return frameHeaderHeightCache.get(node.id);
         }
 
-        let detailLines = 0;
+        const nodeWidth = getNodeWidth(node);
+        const availableWidth = nodeWidth - 28;
+        const titleLines = estimateTextLines(node.label, availableWidth, 7.1);
+        const detailLines = getNodeDetailLineCount(node);
+        const metaRows = estimateMetaRows(
+            getVisibleMetaLabels(node, isPerformanceMode),
+            availableWidth,
+        );
 
-        if (formatTopTypeCounts(node.analysis?.totalIncomingTypeCounts)) {
-            detailLines += 1;
-        }
-
-        if (formatTopTypeCounts(node.analysis?.totalOutgoingTypeCounts)) {
-            detailLines += 1;
-        }
-
-        const headerHeight =
-            FRAME_HEADER_HEIGHT + detailLines * FRAME_DETAIL_LINE_HEIGHT;
+        const headerHeight = Math.max(
+            FRAME_HEADER_HEIGHT,
+            14 +
+                titleLines * 14 +
+                6 +
+                Math.max(metaRows, 1) * 22 +
+                detailLines * FRAME_DETAIL_LINE_HEIGHT,
+        );
         frameHeaderHeightCache.set(node.id, headerHeight);
         return headerHeight;
     };
@@ -374,6 +496,7 @@ const buildFlowGraph = (tree, connections = []) => {
                     key: node.key,
                     hasCustomConditional: node.hasCustomConditional,
                     analysis: node.analysis,
+                    isPerformanceMode,
                 },
                 style: {
                     width: frameWidth,
@@ -385,7 +508,7 @@ const buildFlowGraph = (tree, connections = []) => {
                 zIndex: -1,
             });
         } else {
-            const y = top + height / 2 - NODE_HEIGHT / 2;
+            const y = top;
             nodes.push({
                 id,
                 type: "treeNode",
@@ -399,10 +522,11 @@ const buildFlowGraph = (tree, connections = []) => {
                     key: node.key,
                     hasCustomConditional: node.hasCustomConditional,
                     analysis: node.analysis,
+                    isPerformanceMode,
                 },
                 style: {
                     width: nodeWidth,
-                    minHeight: NODE_HEIGHT,
+                    minHeight: height,
                 },
                 draggable: false,
                 connectable: false,
@@ -419,7 +543,7 @@ const buildFlowGraph = (tree, connections = []) => {
                     id: hierarchyEdgeId,
                     source: parentId,
                     target: id,
-                    type: "smoothstep",
+                    type: isPerformanceMode ? "straight" : "smoothstep",
                     animated: false,
                     selectable: false,
                 });
@@ -474,9 +598,9 @@ const buildFlowGraph = (tree, connections = []) => {
             id: connectionEdgeId,
             source: sourceId,
             target: targetId,
-            type: "smoothstep",
-            animated: true,
-            selectable: true,
+            type: isPerformanceMode ? "straight" : "smoothstep",
+            animated: false,
+            selectable: !isPerformanceMode,
             zIndex: 20,
             className: "diagram-connection-edge",
             style: {
@@ -489,14 +613,16 @@ const buildFlowGraph = (tree, connections = []) => {
                 height: 18,
                 color: "var(--accent-600)",
             },
-            label: connection.connectionType,
-            labelBgPadding: [6, 3],
-            labelBgBorderRadius: 6,
-            labelStyle: {
-                fontSize: 11,
-                fill: "var(--ink-700)",
-                fontWeight: 600,
-            },
+            label: isPerformanceMode ? undefined : connection.connectionType,
+            labelBgPadding: isPerformanceMode ? undefined : [6, 3],
+            labelBgBorderRadius: isPerformanceMode ? undefined : 6,
+            labelStyle: isPerformanceMode
+                ? undefined
+                : {
+                      fontSize: 11,
+                      fill: "var(--ink-700)",
+                      fontWeight: 600,
+                  },
             data: {
                 connectionType: connection.connectionType,
                 context: connection.context,
@@ -529,9 +655,10 @@ const TreeDiagram = ({ nodes, connections }) => {
                 nodeTypes={nodeTypes}
                 defaultEdgeOptions={{ zIndex: 10 }}
                 fitView
+                onlyRenderVisibleElements
                 nodesDraggable={false}
                 nodesConnectable={false}
-                elementsSelectable
+                elementsSelectable={false}
                 proOptions={{ hideAttribution: true }}
                 minZoom={0.2}
                 maxZoom={1.4}

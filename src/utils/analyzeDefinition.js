@@ -48,6 +48,49 @@ const getPrimaryPath = (value) => {
     return value.split(",")[0].trim();
 };
 
+const buildLocatorFromMetadata = (metadata) => {
+    if (!metadata?.component) {
+        return null;
+    }
+
+    const component = metadata.component;
+
+    return {
+        label:
+            component.label || component.key || component.type || "Component",
+        key: component.key || "",
+        type: component.type || "unknown",
+        schemaPath: metadata.schemaPath || "",
+        dataPath: metadata.dataPath || "",
+    };
+};
+
+const enrichErrorsWithLocators = (errors, metadataByPath) => {
+    return errors.map((error) => {
+        const rawPath = typeof error.path === "string" ? error.path : "";
+        const schemaPaths = rawPath
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean);
+
+        const locators = schemaPaths
+            .map((schemaPath) => {
+                const metadata = metadataByPath[schemaPath];
+                return buildLocatorFromMetadata(metadata);
+            })
+            .filter(Boolean);
+
+        if (!locators.length) {
+            return error;
+        }
+
+        return {
+            ...error,
+            locators,
+        };
+    });
+};
+
 const buildTreeAnalysisMaps = (errors, connections, unresolvedConnections) => {
     const errorCounts = new Map();
     const incomingCounts = new Map();
@@ -289,18 +332,22 @@ export const analyzeDefinition = (raw) => {
             }
         });
 
-        const connectionsAnalysis = detectConnections(indexed);
+        const connectionsAnalysis = detectConnections(indexed, metadataByPath);
+        const errorsWithLocators = enrichErrorsWithLocators(
+            errors,
+            metadataByPath,
+        );
         const tree = enrichTreeWithAnalysis(
             buildTreeFromSchema(components),
             buildTreeAnalysisMaps(
-                errors,
+                errorsWithLocators,
                 connectionsAnalysis.connections,
                 connectionsAnalysis.unresolved,
             ),
         );
 
         return {
-            errors,
+            errors: errorsWithLocators,
             tree,
             connections: connectionsAnalysis.connections,
             unresolvedConnections: connectionsAnalysis.unresolved,

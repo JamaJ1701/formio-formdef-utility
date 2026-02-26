@@ -16,26 +16,25 @@ const ConnectionItem = ({ connection }) => {
                     source key: {connection.sourceKey || "-"}
                 </span>
                 <span className="meta">target key: {connection.targetKey}</span>
-                <span className="meta">via: {connection.context}</span>
-            </div>
-        </li>
-    );
-};
-
-const UnresolvedItem = ({ connection }) => {
-    return (
-        <li className="unresolved-item">
-            <div className="connection-route">
-                <span className="connection-node">
-                    {connection.sourceLabel}
+                <span className="meta">
+                    rule field (schema path): {connection.context}
                 </span>
-                <span className="connection-arrow">→</span>
-                <span className="connection-node">{connection.targetKey}</span>
             </div>
-            <div className="connection-meta">
-                <span className="badge">{connection.connectionType}</span>
-                <span className="meta">unresolved key</span>
-                <span className="meta">via: {connection.context}</span>
+            <div className="locator-meta">
+                <span className="meta">
+                    source: type {connection.sourceType}, schema{" "}
+                    {connection.sourceSchemaPath}
+                    {connection.sourceDataPath
+                        ? `, data ${connection.sourceDataPath}`
+                        : ""}
+                </span>
+                <span className="meta">
+                    target: type {connection.targetType}, schema{" "}
+                    {connection.targetSchemaPath}
+                    {connection.targetDataPath
+                        ? `, data ${connection.targetDataPath}`
+                        : ""}
+                </span>
             </div>
         </li>
     );
@@ -52,13 +51,9 @@ const groupByType = (connections) => {
     }, {});
 };
 
-const Connections = ({ connections, unresolvedConnections }) => {
-    if (!connections.length && !unresolvedConnections.length) {
-        return (
-            <p className="empty-state">
-                Run analysis to see detected component connections.
-            </p>
-        );
+const Connections = ({ connections }) => {
+    if (!connections.length) {
+        return <p className="empty-state">No connections found.</p>;
     }
 
     const grouped = groupByType(connections);
@@ -80,25 +75,6 @@ const Connections = ({ connections, unresolvedConnections }) => {
                     </ul>
                 </div>
             ))}
-
-            {unresolvedConnections.length ? (
-                <div className="connection-group unresolved-group">
-                    <h4>
-                        unresolved references{" "}
-                        <span className="meta">
-                            ({unresolvedConnections.length})
-                        </span>
-                    </h4>
-                    <ul>
-                        {unresolvedConnections.map((connection, index) => (
-                            <UnresolvedItem
-                                key={`${connection.sourcePath}-${connection.targetKey}-${index}`}
-                                connection={connection}
-                            />
-                        ))}
-                    </ul>
-                </div>
-            ) : null}
         </div>
     );
 };

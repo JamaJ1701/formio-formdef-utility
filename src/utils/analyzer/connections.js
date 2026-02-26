@@ -105,17 +105,20 @@ const parseJsonLogicMaybe = (value) => {
     }
 };
 
-const buildComponentCatalog = (flattened) => {
+const buildComponentCatalog = (flattened, metadataByPath = {}) => {
     const byPath = new Map();
     const keysToPaths = new Map();
 
     Object.entries(flattened).forEach(([path, component]) => {
+        const metadata = metadataByPath[path] ?? {};
         const entry = {
             path,
             component,
             key: component?.key ?? "",
             label: normalizeLabel(component),
             type: component?.type ?? "unknown",
+            schemaPath: metadata.schemaPath ?? path,
+            dataPath: metadata.dataPath ?? "",
         };
 
         byPath.set(path, entry);
@@ -131,8 +134,11 @@ const buildComponentCatalog = (flattened) => {
     return { byPath, keysToPaths };
 };
 
-export const detectConnections = (flattened) => {
-    const { byPath, keysToPaths } = buildComponentCatalog(flattened);
+export const detectConnections = (flattened, metadataByPath = {}) => {
+    const { byPath, keysToPaths } = buildComponentCatalog(
+        flattened,
+        metadataByPath,
+    );
     const knownKeys = new Set(keysToPaths.keys());
     const connections = [];
     const unresolved = [];
@@ -150,8 +156,11 @@ export const detectConnections = (flattened) => {
                 dedupe.add(unresolvedId);
                 unresolved.push({
                     sourcePath,
+                    sourceSchemaPath: source?.schemaPath ?? sourcePath,
+                    sourceDataPath: source?.dataPath ?? "",
                     sourceKey: source?.key ?? "",
                     sourceLabel: source?.label ?? sourcePath,
+                    sourceType: source?.type ?? "unknown",
                     targetKey,
                     connectionType: type,
                     context,
@@ -170,10 +179,14 @@ export const detectConnections = (flattened) => {
             connections.push({
                 id,
                 sourcePath,
+                sourceSchemaPath: source?.schemaPath ?? sourcePath,
+                sourceDataPath: source?.dataPath ?? "",
                 sourceKey: source?.key ?? "",
                 sourceLabel: source?.label ?? sourcePath,
                 sourceType: source?.type ?? "unknown",
                 targetPath,
+                targetSchemaPath: target?.schemaPath ?? targetPath,
+                targetDataPath: target?.dataPath ?? "",
                 targetKey,
                 targetLabel: target?.label ?? targetPath,
                 targetType: target?.type ?? "unknown",
