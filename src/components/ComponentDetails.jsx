@@ -2,6 +2,8 @@ const ComponentDetails = ({
     selectedNode,
     selectedErrors,
     selectedUnresolvedReferences,
+    selectedReferencedComponents,
+    selectedReferencingComponents,
     selectedTriggerLogicTypes,
     selectedActionLogicTypes,
     selectedConditionalLogicTypes,
@@ -13,6 +15,14 @@ const ComponentDetails = ({
             <p className="empty-state">Select a component to view details.</p>
         );
     }
+
+    const directLinks =
+        (selectedNode.analysis?.directIncoming ?? 0) +
+        (selectedNode.analysis?.directOutgoing ?? 0);
+    const childLinks = Math.max(
+        0,
+        (selectedNode.analysis?.totalConnections ?? 0) - directLinks,
+    );
 
     return (
         <>
@@ -44,8 +54,18 @@ const ComponentDetails = ({
                     ) : null}
                     <div className="component-tree-detail-kv-row">
                         <dt>schema path</dt>
-                        <dd>{selectedNode.id}</dd>
+                        <dd>
+                            {selectedNode.schemaPathDisplay || selectedNode.id}
+                        </dd>
                     </div>
+                    {selectedNode.schemaPath &&
+                    selectedNode.schemaPath !==
+                        selectedNode.schemaPathDisplay ? (
+                        <div className="component-tree-detail-kv-row">
+                            <dt>raw path</dt>
+                            <dd>{selectedNode.schemaPath}</dd>
+                        </div>
+                    ) : null}
                     <div className="component-tree-detail-kv-row">
                         <dt>data path</dt>
                         <dd>{selectedNode.dataPath || "not mapped"}</dd>
@@ -197,9 +217,13 @@ const ComponentDetails = ({
                         total errors: {selectedNode.analysis?.totalErrors ?? 0}
                     </span>
                     <span className="badge connection-tag">
-                        total links:{" "}
-                        {selectedNode.analysis?.totalConnections ?? 0}
+                        direct links: {directLinks}
                     </span>
+                    {childLinks > 0 ? (
+                        <span className="badge connection-tag">
+                            child links: {childLinks}
+                        </span>
+                    ) : null}
                     <span className="badge unresolved-tag">
                         unresolved out:{" "}
                         {selectedNode.analysis?.totalUnresolvedOutgoing ?? 0}
@@ -218,6 +242,48 @@ const ComponentDetails = ({
                     </ul>
                 ) : (
                     <p className="empty-state">No direct errors.</p>
+                )}
+            </div>
+            <div className="component-tree-detail-section">
+                <h5>Components referencing this</h5>
+                {selectedReferencingComponents.length ? (
+                    <ul className="component-tree-detail-list">
+                        {selectedReferencingComponents.map((connection) => (
+                            <li
+                                key={`${selectedNode.id}-incoming-${connection.id}`}
+                            >
+                                <span className="detail-list-title">
+                                    {connection.sourceDataPath ||
+                                        connection.sourceKey ||
+                                        connection.sourceSchemaPathDisplay ||
+                                        connection.sourcePath}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="empty-state">No incoming references.</p>
+                )}
+            </div>
+            <div className="component-tree-detail-section">
+                <h5>Components referenced by this</h5>
+                {selectedReferencedComponents.length ? (
+                    <ul className="component-tree-detail-list">
+                        {selectedReferencedComponents.map((connection) => (
+                            <li
+                                key={`${selectedNode.id}-outgoing-${connection.id}`}
+                            >
+                                <span className="detail-list-title">
+                                    {connection.targetDataPath ||
+                                        connection.targetKey ||
+                                        connection.targetSchemaPathDisplay ||
+                                        connection.targetPath}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="empty-state">No outgoing references.</p>
                 )}
             </div>
             <div className="component-tree-detail-section">

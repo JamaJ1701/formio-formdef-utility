@@ -178,6 +178,7 @@ export default function App() {
                             <ComponentTree
                                 nodes={analysis?.tree ?? []}
                                 errors={analysis?.errors ?? []}
+                                connections={analysis?.connections ?? []}
                                 unresolvedConnections={
                                     analysis?.unresolvedConnections ?? []
                                 }

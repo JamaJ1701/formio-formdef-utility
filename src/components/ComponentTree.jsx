@@ -127,6 +127,13 @@ const TreeNode = ({
     const hasChildren = children.length > 0;
     const isCollapsed = hasChildren && collapsedIds.has(node.id);
     const isSelected = selectedNodeId === node.id;
+    const directLinks =
+        (node.analysis?.directIncoming ?? 0) +
+        (node.analysis?.directOutgoing ?? 0);
+    const childLinks = Math.max(
+        0,
+        (node.analysis?.totalConnections ?? 0) - directLinks,
+    );
 
     return (
         <li>
@@ -170,9 +177,14 @@ const TreeNode = ({
                                 errors: {node.analysis.totalErrors}
                             </span>
                         ) : null}
-                        {node.analysis?.totalConnections > 0 ? (
+                        {directLinks > 0 ? (
                             <span className="badge connection-tag">
-                                links: {node.analysis.totalConnections}
+                                links: {directLinks}
+                            </span>
+                        ) : null}
+                        {childLinks > 0 ? (
+                            <span className="badge connection-tag">
+                                child links: {childLinks}
                             </span>
                         ) : null}
                         {node.analysis?.totalUnresolvedOutgoing > 0 ? (
@@ -215,6 +227,7 @@ const TreeNode = ({
 const ComponentTree = ({
     nodes,
     errors,
+    connections,
     unresolvedConnections,
     componentTypes,
 }) => {
@@ -312,6 +325,50 @@ const ComponentTree = ({
 
     const selectedUnresolvedReferences = selectedNode
         ? (unresolvedBySourcePath.get(selectedNode.id) ?? [])
+        : [];
+
+    const outgoingBySourcePath = useMemo(() => {
+        const map = new Map();
+
+        (connections ?? []).forEach((connection) => {
+            if (!connection.sourcePath) {
+                return;
+            }
+
+            if (!map.has(connection.sourcePath)) {
+                map.set(connection.sourcePath, []);
+            }
+
+            map.get(connection.sourcePath).push(connection);
+        });
+
+        return map;
+    }, [connections]);
+
+    const incomingByTargetPath = useMemo(() => {
+        const map = new Map();
+
+        (connections ?? []).forEach((connection) => {
+            if (!connection.targetPath) {
+                return;
+            }
+
+            if (!map.has(connection.targetPath)) {
+                map.set(connection.targetPath, []);
+            }
+
+            map.get(connection.targetPath).push(connection);
+        });
+
+        return map;
+    }, [connections]);
+
+    const selectedReferencedComponents = selectedNode
+        ? (outgoingBySourcePath.get(selectedNode.id) ?? [])
+        : [];
+
+    const selectedReferencingComponents = selectedNode
+        ? (incomingByTargetPath.get(selectedNode.id) ?? [])
         : [];
 
     const selectedTriggerLogicTypes = useMemo(() => {
@@ -464,6 +521,12 @@ const ComponentTree = ({
                         selectedErrors={selectedErrors}
                         selectedUnresolvedReferences={
                             selectedUnresolvedReferences
+                        }
+                        selectedReferencedComponents={
+                            selectedReferencedComponents
+                        }
+                        selectedReferencingComponents={
+                            selectedReferencingComponents
                         }
                         selectedTriggerLogicTypes={selectedTriggerLogicTypes}
                         selectedActionLogicTypes={selectedActionLogicTypes}

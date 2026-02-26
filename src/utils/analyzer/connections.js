@@ -143,7 +143,8 @@ export const detectConnections = (flattened, metadataByPath = {}) => {
     const knownKeys = new Set(keysToPaths.keys());
     const connections = [];
     const unresolved = [];
-    const dedupe = new Set();
+    const resolvedRelationshipDedupe = new Set();
+    const unresolvedRelationshipDedupe = new Set();
 
     const toDisplayContext = (sourcePath, context, sourceSchemaPathDisplay) => {
         if (
@@ -165,9 +166,9 @@ export const detectConnections = (flattened, metadataByPath = {}) => {
         const targetPaths = keysToPaths.get(targetKey);
 
         if (!targetPaths?.length) {
-            const unresolvedId = `${sourcePath}|${targetKey}|${type}|${context}`;
-            if (!dedupe.has(unresolvedId)) {
-                dedupe.add(unresolvedId);
+            const unresolvedRelationshipKey = `${sourcePath}|${targetKey}`;
+            if (!unresolvedRelationshipDedupe.has(unresolvedRelationshipKey)) {
+                unresolvedRelationshipDedupe.add(unresolvedRelationshipKey);
                 unresolved.push({
                     sourcePath,
                     sourceSchemaPath: source?.schemaPath ?? sourcePath,
@@ -196,13 +197,13 @@ export const detectConnections = (flattened, metadataByPath = {}) => {
 
         targetPaths.forEach((targetPath) => {
             const target = byPath.get(targetPath);
-            const id = `${sourcePath}|${targetPath}|${type}|${context}`;
+            const relationshipKey = `${sourcePath}|${targetPath}`;
 
-            if (dedupe.has(id)) return;
-            dedupe.add(id);
+            if (resolvedRelationshipDedupe.has(relationshipKey)) return;
+            resolvedRelationshipDedupe.add(relationshipKey);
 
             connections.push({
-                id,
+                id: relationshipKey,
                 sourcePath,
                 sourceSchemaPath: source?.schemaPath ?? sourcePath,
                 sourceSchemaPathDisplay:

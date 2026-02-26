@@ -421,6 +421,9 @@ const enrichTreeWithAnalysis = (nodes, maps, metadataByPath, componentKeys) => {
         );
         const metadata = metadataByPath[node.id];
         const dataPath = metadata?.dataPath || "";
+        const schemaPath = metadata?.schemaPath || node.id;
+        const schemaPathDisplay =
+            metadata?.schemaPathDisplay || metadata?.schemaPath || node.id;
         const affectsDataPath = Boolean(dataPath);
         const { hasLogic, logicTypes } = extractLogicTypes(metadata?.component);
         const logicDetails = extractConfiguredLogicDetails(
@@ -509,6 +512,8 @@ const enrichTreeWithAnalysis = (nodes, maps, metadataByPath, componentKeys) => {
         return {
             ...node,
             children,
+            schemaPath,
+            schemaPathDisplay,
             dataPath,
             affectsDataPath,
             hasLogic: hasAnyLogic,
