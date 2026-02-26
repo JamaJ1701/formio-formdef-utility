@@ -13,6 +13,7 @@ const FRAME_PADDING_LEFT = 16;
 const FRAME_PADDING_RIGHT = 16;
 const FRAME_PADDING_Y = 20;
 const FRAME_HEADER_HEIGHT = 64;
+const FRAME_DETAIL_LINE_HEIGHT = 18;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -25,10 +26,34 @@ const estimateWidthFromText = (text) => {
 const isContainerNode = (node) =>
     Array.isArray(node?.children) && node.children.length > 0;
 
+const formatTopTypeCounts = (counts, limit = 2) => {
+    const entries = Object.entries(counts ?? {});
+    if (!entries.length) {
+        return "";
+    }
+
+    const sorted = entries
+        .sort((left, right) => right[1] - left[1])
+        .slice(0, limit)
+        .map(([type, count]) => `${type}(${count})`)
+        .join(", ");
+
+    return sorted;
+};
+
 const TreeDiagramNode = ({ data }) => {
+    const directIncoming = data.analysis?.directIncoming ?? 0;
+    const directOutgoing = data.analysis?.directOutgoing ?? 0;
+    const directErrors = data.analysis?.directErrors ?? 0;
     const totalErrors = data.analysis?.totalErrors ?? 0;
     const totalConnections = data.analysis?.totalConnections ?? 0;
     const totalUnresolvedOutgoing = data.analysis?.totalUnresolvedOutgoing ?? 0;
+    const incomingTypeSummary = formatTopTypeCounts(
+        data.analysis?.totalIncomingTypeCounts,
+    );
+    const outgoingTypeSummary = formatTopTypeCounts(
+        data.analysis?.totalOutgoingTypeCounts,
+    );
 
     return (
         <div className="diagram-node">
@@ -53,20 +78,49 @@ const TreeDiagramNode = ({ data }) => {
                         links: {totalConnections}
                     </span>
                 ) : null}
+                {directIncoming + directOutgoing > 0 ? (
+                    <span className="badge connection-tag">
+                        in/out: {directIncoming}/{directOutgoing}
+                    </span>
+                ) : null}
                 {totalUnresolvedOutgoing > 0 ? (
                     <span className="badge unresolved-tag">
                         unresolved: {totalUnresolvedOutgoing}
                     </span>
                 ) : null}
+                {directErrors > 0 ? (
+                    <span className="badge issue-tag">
+                        direct errors: {directErrors}
+                    </span>
+                ) : null}
             </span>
+            {incomingTypeSummary ? (
+                <span className="diagram-analysis-detail">
+                    incoming types: {incomingTypeSummary}
+                </span>
+            ) : null}
+            {outgoingTypeSummary ? (
+                <span className="diagram-analysis-detail">
+                    outgoing types: {outgoingTypeSummary}
+                </span>
+            ) : null}
         </div>
     );
 };
 
 const PageFrameNode = ({ data }) => {
+    const directIncoming = data.analysis?.directIncoming ?? 0;
+    const directOutgoing = data.analysis?.directOutgoing ?? 0;
+    const directErrors = data.analysis?.directErrors ?? 0;
     const totalErrors = data.analysis?.totalErrors ?? 0;
     const totalConnections = data.analysis?.totalConnections ?? 0;
     const totalUnresolvedOutgoing = data.analysis?.totalUnresolvedOutgoing ?? 0;
+    const incomingTypeSummary = formatTopTypeCounts(
+        data.analysis?.totalIncomingTypeCounts,
+    );
+    const outgoingTypeSummary = formatTopTypeCounts(
+        data.analysis?.totalOutgoingTypeCounts,
+    );
 
     return (
         <div className="diagram-frame">
@@ -91,12 +145,32 @@ const PageFrameNode = ({ data }) => {
                         links: {totalConnections}
                     </span>
                 ) : null}
+                {directIncoming + directOutgoing > 0 ? (
+                    <span className="badge connection-tag">
+                        in/out: {directIncoming}/{directOutgoing}
+                    </span>
+                ) : null}
                 {totalUnresolvedOutgoing > 0 ? (
                     <span className="badge unresolved-tag">
                         unresolved: {totalUnresolvedOutgoing}
                     </span>
                 ) : null}
+                {directErrors > 0 ? (
+                    <span className="badge issue-tag">
+                        direct errors: {directErrors}
+                    </span>
+                ) : null}
             </span>
+            {incomingTypeSummary ? (
+                <span className="diagram-analysis-detail">
+                    incoming types: {incomingTypeSummary}
+                </span>
+            ) : null}
+            {outgoingTypeSummary ? (
+                <span className="diagram-analysis-detail">
+                    outgoing types: {outgoingTypeSummary}
+                </span>
+            ) : null}
         </div>
     );
 };
@@ -113,8 +187,9 @@ const buildFlowGraph = (tree, connections = []) => {
     const edgeIds = new Set();
 
     const heightCache = new Map();
-    const depthCache = new Map();
     const widthCache = new Map();
+    const subtreeWidthCache = new Map();
+    const frameHeaderHeightCache = new Map();
 
     const getNodeWidth = (node) => {
         if (widthCache.has(node.id)) {
@@ -145,6 +220,24 @@ const buildFlowGraph = (tree, connections = []) => {
                       `unresolved: ${node.analysis.totalUnresolvedOutgoing}`,
                   )
                 : 0;
+        const inOutWidth =
+            (node.analysis?.directIncoming ?? 0) +
+                (node.analysis?.directOutgoing ?? 0) >
+            0
+                ? estimateWidthFromText(
+                      `in/out: ${node.analysis.directIncoming}/${node.analysis.directOutgoing}`,
+                  )
+                : 0;
+        const incomingTypesWidth = node.analysis?.totalIncomingTypeCounts
+            ? estimateWidthFromText(
+                  `incoming types: ${formatTopTypeCounts(node.analysis.totalIncomingTypeCounts)}`,
+              )
+            : 0;
+        const outgoingTypesWidth = node.analysis?.totalOutgoingTypeCounts
+            ? estimateWidthFromText(
+                  `outgoing types: ${formatTopTypeCounts(node.analysis.totalOutgoingTypeCounts)}`,
+              )
+            : 0;
 
         const width = clamp(
             Math.max(
@@ -155,6 +248,9 @@ const buildFlowGraph = (tree, connections = []) => {
                 errorWidth,
                 linksWidth,
                 unresolvedWidth,
+                inOutWidth,
+                incomingTypesWidth,
+                outgoingTypesWidth,
             ),
             NODE_MIN_WIDTH,
             NODE_MAX_WIDTH,
@@ -182,8 +278,10 @@ const buildFlowGraph = (tree, connections = []) => {
                 0,
             );
 
+            const headerHeight = getFrameHeaderHeight(node);
+
             height =
-                FRAME_HEADER_HEIGHT +
+                headerHeight +
                 FRAME_PADDING_Y * 2 +
                 Math.max(childrenHeight, NODE_HEIGHT);
         }
@@ -192,20 +290,63 @@ const buildFlowGraph = (tree, connections = []) => {
         return height;
     };
 
-    const getNodeDepth = (node) => {
-        if (depthCache.has(node.id)) {
-            return depthCache.get(node.id);
+    const getSubtreeWidth = (node) => {
+        if (subtreeWidthCache.has(node.id)) {
+            return subtreeWidthCache.get(node.id);
         }
 
-        let depth = 0;
-        if (isContainerNode(node)) {
-            depth = Math.max(
-                ...node.children.map((child) => getNodeDepth(child) + 1),
-            );
+        const ownWidth = getNodeWidth(node);
+
+        if (!isContainerNode(node)) {
+            subtreeWidthCache.set(node.id, ownWidth);
+            return ownWidth;
         }
 
-        depthCache.set(node.id, depth);
-        return depth;
+        const childWidth = Math.max(
+            0,
+            ...node.children.map(
+                (child) => HORIZONTAL_GAP + getSubtreeWidth(child),
+            ),
+        );
+
+        const width = Math.max(ownWidth, FRAME_PADDING_LEFT + childWidth);
+        subtreeWidthCache.set(node.id, width);
+        return width;
+    };
+
+    const getFrameHeaderHeight = (node) => {
+        if (frameHeaderHeightCache.has(node.id)) {
+            return frameHeaderHeightCache.get(node.id);
+        }
+
+        let detailLines = 0;
+
+        if (formatTopTypeCounts(node.analysis?.totalIncomingTypeCounts)) {
+            detailLines += 1;
+        }
+
+        if (formatTopTypeCounts(node.analysis?.totalOutgoingTypeCounts)) {
+            detailLines += 1;
+        }
+
+        const headerHeight =
+            FRAME_HEADER_HEIGHT + detailLines * FRAME_DETAIL_LINE_HEIGHT;
+        frameHeaderHeightCache.set(node.id, headerHeight);
+        return headerHeight;
+    };
+
+    const getRenderedNodeWidth = (node) => {
+        const nodeWidth = getNodeWidth(node);
+
+        if (!isContainerNode(node)) {
+            return nodeWidth;
+        }
+
+        const innerWidth = getSubtreeWidth(node);
+        return Math.max(
+            innerWidth + FRAME_PADDING_RIGHT,
+            nodeWidth + FRAME_PADDING_LEFT + FRAME_PADDING_RIGHT,
+        );
     };
 
     const visit = (node, depth, top, parentId, xOffset) => {
@@ -218,13 +359,7 @@ const buildFlowGraph = (tree, connections = []) => {
         pathToDiagramId.set(node.id, id);
 
         if (isContainer) {
-            const maxDepth = getNodeDepth(node);
-            const innerWidth =
-                (maxDepth + 1) * NODE_MAX_WIDTH + maxDepth * HORIZONTAL_GAP;
-            const frameWidth = Math.max(
-                innerWidth + FRAME_PADDING_LEFT + FRAME_PADDING_RIGHT,
-                nodeWidth + FRAME_PADDING_LEFT + FRAME_PADDING_RIGHT,
-            );
+            const frameWidth = getRenderedNodeWidth(node);
 
             nodes.push({
                 id,
@@ -293,6 +428,8 @@ const buildFlowGraph = (tree, connections = []) => {
 
         if (isContainer) {
             let childTop = top + FRAME_HEADER_HEIGHT + FRAME_PADDING_Y;
+            const headerHeight = getFrameHeaderHeight(node);
+            childTop = top + headerHeight + FRAME_PADDING_Y;
             node.children.forEach((child, index) => {
                 const childHeight = getNodeHeight(child);
                 visit(
@@ -312,11 +449,11 @@ const buildFlowGraph = (tree, connections = []) => {
         return height;
     };
 
-    let top = 0;
+    let left = 0;
     tree.forEach((rootNode) => {
-        const rootHeight = getNodeHeight(rootNode);
-        visit(rootNode, 0, top, null, 0);
-        top += rootHeight + ROOT_GAP;
+        const rootWidth = getRenderedNodeWidth(rootNode);
+        visit(rootNode, 0, 0, null, left);
+        left += rootWidth + ROOT_GAP;
     });
 
     connections.forEach((connection) => {

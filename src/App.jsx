@@ -22,6 +22,29 @@ function App() {
         setIsFormCollapsed(false);
     };
 
+    const summaryRows = analysis
+        ? [
+              { label: "Components", value: analysis.stats?.total ?? 0 },
+              {
+                  label: "Display",
+                  value: analysis.stats?.display ?? "unknown",
+              },
+              {
+                  label: "Connections",
+                  value: analysis.stats?.totalConnections ?? 0,
+              },
+              {
+                  label: "Connection types",
+                  value: analysis.stats?.connectionTypes ?? 0,
+              },
+              {
+                  label: "Unresolved",
+                  value: analysis.unresolvedConnections?.length ?? 0,
+              },
+              { label: "Errors", value: analysis.errors?.length ?? 0 },
+          ]
+        : [];
+
     return (
         <div className="app">
             <header className="header">
@@ -98,27 +121,28 @@ function App() {
                                 Errors and component map.
                             </p>
                         </div>
-                        {analysis?.stats ? (
-                            <div className="stats">
-                                <span className="stat">
-                                    {analysis.stats.total} components
-                                </span>
-                                <span className="stat">
-                                    display: {analysis.stats.display}
-                                </span>
-                                <span className="stat">
-                                    connections:{" "}
-                                    {analysis.stats.totalConnections ?? 0}
-                                </span>
-                                <span className="stat">
-                                    connection types:{" "}
-                                    {analysis.stats.connectionTypes ?? 0}
-                                </span>
-                            </div>
-                        ) : null}
                     </div>
 
                     <div className="panel-body">
+                        {summaryRows.length ? (
+                            <div
+                                className="analysis-summary"
+                                role="region"
+                                aria-label="Analysis summary"
+                            >
+                                <table className="analysis-summary-table">
+                                    <tbody>
+                                        {summaryRows.map((row) => (
+                                            <tr key={row.label}>
+                                                <th scope="row">{row.label}</th>
+                                                <td>{row.value}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
+
                         <div className="tree-wrap">
                             <h3>Component diagram</h3>
                             <TreeDiagram

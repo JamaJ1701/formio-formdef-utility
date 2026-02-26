@@ -11,6 +11,35 @@ const incrementCount = (map, key) => {
     map.set(key, (map.get(key) ?? 0) + 1);
 };
 
+const incrementTypeCount = (map, key, type) => {
+    if (!key || !type) return;
+
+    if (!map.has(key)) {
+        map.set(key, new Map());
+    }
+
+    const typeMap = map.get(key);
+    typeMap.set(type, (typeMap.get(type) ?? 0) + 1);
+};
+
+const toCountObject = (typeMap) => {
+    if (!typeMap) {
+        return {};
+    }
+
+    return Object.fromEntries(typeMap.entries());
+};
+
+const mergeCountObjects = (left = {}, right = {}) => {
+    const merged = { ...left };
+
+    Object.entries(right).forEach(([key, value]) => {
+        merged[key] = (merged[key] ?? 0) + value;
+    });
+
+    return merged;
+};
+
 const getPrimaryPath = (value) => {
     if (typeof value !== "string") {
         return "";
@@ -24,6 +53,9 @@ const buildTreeAnalysisMaps = (errors, connections, unresolvedConnections) => {
     const incomingCounts = new Map();
     const outgoingCounts = new Map();
     const unresolvedOutgoingCounts = new Map();
+    const incomingTypeCounts = new Map();
+    const outgoingTypeCounts = new Map();
+    const unresolvedOutgoingTypeCounts = new Map();
 
     errors.forEach((error) => {
         incrementCount(errorCounts, getPrimaryPath(error.path));
@@ -32,10 +64,25 @@ const buildTreeAnalysisMaps = (errors, connections, unresolvedConnections) => {
     connections.forEach((connection) => {
         incrementCount(outgoingCounts, connection.sourcePath);
         incrementCount(incomingCounts, connection.targetPath);
+        incrementTypeCount(
+            outgoingTypeCounts,
+            connection.sourcePath,
+            connection.connectionType,
+        );
+        incrementTypeCount(
+            incomingTypeCounts,
+            connection.targetPath,
+            connection.connectionType,
+        );
     });
 
     unresolvedConnections.forEach((connection) => {
         incrementCount(unresolvedOutgoingCounts, connection.sourcePath);
+        incrementTypeCount(
+            unresolvedOutgoingTypeCounts,
+            connection.sourcePath,
+            connection.connectionType,
+        );
     });
 
     return {
@@ -43,6 +90,9 @@ const buildTreeAnalysisMaps = (errors, connections, unresolvedConnections) => {
         incomingCounts,
         outgoingCounts,
         unresolvedOutgoingCounts,
+        incomingTypeCounts,
+        outgoingTypeCounts,
+        unresolvedOutgoingTypeCounts,
     };
 };
 
@@ -55,6 +105,15 @@ const enrichTreeWithAnalysis = (nodes, maps) => {
         const directOutgoing = maps.outgoingCounts.get(node.id) ?? 0;
         const directUnresolvedOutgoing =
             maps.unresolvedOutgoingCounts.get(node.id) ?? 0;
+        const directIncomingTypeCounts = toCountObject(
+            maps.incomingTypeCounts.get(node.id),
+        );
+        const directOutgoingTypeCounts = toCountObject(
+            maps.outgoingTypeCounts.get(node.id),
+        );
+        const directUnresolvedOutgoingTypeCounts = toCountObject(
+            maps.unresolvedOutgoingTypeCounts.get(node.id),
+        );
 
         const childRollup = children.reduce(
             (total, child) => {
@@ -69,6 +128,18 @@ const enrichTreeWithAnalysis = (nodes, maps) => {
                     totalUnresolvedOutgoing:
                         total.totalUnresolvedOutgoing +
                         (analysis.totalUnresolvedOutgoing ?? 0),
+                    totalIncomingTypeCounts: mergeCountObjects(
+                        total.totalIncomingTypeCounts,
+                        analysis.totalIncomingTypeCounts,
+                    ),
+                    totalOutgoingTypeCounts: mergeCountObjects(
+                        total.totalOutgoingTypeCounts,
+                        analysis.totalOutgoingTypeCounts,
+                    ),
+                    totalUnresolvedOutgoingTypeCounts: mergeCountObjects(
+                        total.totalUnresolvedOutgoingTypeCounts,
+                        analysis.totalUnresolvedOutgoingTypeCounts,
+                    ),
                 };
             },
             {
@@ -76,6 +147,9 @@ const enrichTreeWithAnalysis = (nodes, maps) => {
                 totalIncoming: 0,
                 totalOutgoing: 0,
                 totalUnresolvedOutgoing: 0,
+                totalIncomingTypeCounts: {},
+                totalOutgoingTypeCounts: {},
+                totalUnresolvedOutgoingTypeCounts: {},
             },
         );
 
@@ -84,6 +158,18 @@ const enrichTreeWithAnalysis = (nodes, maps) => {
         const totalOutgoing = directOutgoing + childRollup.totalOutgoing;
         const totalUnresolvedOutgoing =
             directUnresolvedOutgoing + childRollup.totalUnresolvedOutgoing;
+        const totalIncomingTypeCounts = mergeCountObjects(
+            directIncomingTypeCounts,
+            childRollup.totalIncomingTypeCounts,
+        );
+        const totalOutgoingTypeCounts = mergeCountObjects(
+            directOutgoingTypeCounts,
+            childRollup.totalOutgoingTypeCounts,
+        );
+        const totalUnresolvedOutgoingTypeCounts = mergeCountObjects(
+            directUnresolvedOutgoingTypeCounts,
+            childRollup.totalUnresolvedOutgoingTypeCounts,
+        );
 
         return {
             ...node,
@@ -93,10 +179,16 @@ const enrichTreeWithAnalysis = (nodes, maps) => {
                 directIncoming,
                 directOutgoing,
                 directUnresolvedOutgoing,
+                directIncomingTypeCounts,
+                directOutgoingTypeCounts,
+                directUnresolvedOutgoingTypeCounts,
                 totalErrors,
                 totalIncoming,
                 totalOutgoing,
                 totalUnresolvedOutgoing,
+                totalIncomingTypeCounts,
+                totalOutgoingTypeCounts,
+                totalUnresolvedOutgoingTypeCounts,
                 totalConnections: totalIncoming + totalOutgoing,
             },
         };

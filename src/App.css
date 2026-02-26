@@ -311,6 +311,13 @@
     word-break: break-word;
 }
 
+.diagram-analysis-detail {
+    font-size: 0.76rem;
+    color: var(--ink-600);
+    line-height: 1.3;
+    word-break: break-word;
+}
+
 .diagram-frame {
     width: 100%;
     height: 100%;
@@ -440,19 +447,42 @@
     background: rgba(56, 123, 110, 0.12);
 }
 
-.stats {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    align-items: flex-end;
-    font-size: 0.85rem;
-    color: var(--ink-600);
+.analysis-summary {
+    max-width: 360px;
+    border: 1px solid rgba(20, 26, 40, 0.12);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.78);
+    overflow: hidden;
 }
 
-.stat {
-    background: rgba(20, 26, 40, 0.08);
-    padding: 6px 10px;
-    border-radius: 999px;
+.analysis-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+
+.analysis-summary-table th,
+.analysis-summary-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(20, 26, 40, 0.08);
+}
+
+.analysis-summary-table tr:last-child th,
+.analysis-summary-table tr:last-child td {
+    border-bottom: none;
+}
+
+.analysis-summary-table th {
+    width: 60%;
+    text-align: left;
+    color: var(--ink-600);
+    font-weight: 600;
+}
+
+.analysis-summary-table td {
+    text-align: right;
+    color: var(--ink-900);
+    font-weight: 700;
 }
 
 .empty-state {
@@ -481,9 +511,5 @@
     .actions {
         width: 100%;
         justify-content: flex-start;
-    }
-
-    .stats {
-        align-items: flex-start;
     }
 }
