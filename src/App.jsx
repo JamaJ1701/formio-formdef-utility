@@ -68,8 +68,7 @@ export default function App() {
                 <h1 className="title">Formio Definition Analyzer</h1>
                 <p className="subtitle">
                     Paste a JSON form definition, inspect the component tree,
-                    and catch configuration issues. Maybe you get to have beer
-                    with your colleagues!
+                    and possibly catch configuration issues.
                 </p>
             </header>
 
